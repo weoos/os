@@ -114,7 +114,11 @@ importers:
         specifier: ^1.0.1
         version: registry.npmmirror.com/path-browserify@1.0.1
 
-  packages/event: {}
+  packages/event:
+    dependencies:
+      localforage:
+        specifier: ^1.10.0
+        version: registry.npmmirror.com/localforage@1.10.0
 
   packages/os:
     dependencies:

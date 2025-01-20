@@ -730,6 +730,7 @@ export class Disk implements IDisk {
 
         const sync = () => {
             if (ensure) this._ensureParentPathSync(path);
+            // @ts-ignore
             const r = this.syncMiddleware.createFile(path, content, overwrite);
             fire();
             return r;
