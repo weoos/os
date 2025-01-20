@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "baseUrl": ".",
+    "types": [
+      "../../build/env.d.ts",
+      "@types/node",
+      "../utils",
+      "../disk"
+    ]
+  },
+  "include": [
+    "src"
+  ]
+}

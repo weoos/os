@@ -1,0 +1,26 @@
+{
+  "name": "@weoos/disk",
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": [
+    "*.css",
+    "*.less",
+    "*.scss",
+    "*.sass"
+  ],
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "jszip": "^3.10.1",
+    "localforage": "^1.10.0",
+    "lz-string": "^1.5.0",
+    "path-browserify": "^1.0.1",
+    "@weoos/utils": "workspace:*"
+  }
+}

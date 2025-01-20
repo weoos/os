@@ -1,0 +1,22 @@
+{
+  "name": "@weoos/os",
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": [
+    "*.css",
+    "*.less",
+    "*.scss",
+    "*.sass"
+  ],
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@weoos/cmd": "workspace:*",
+    "@weoos/utils": "workspace:*",
+    "web-term-ui": "^0.0.8"
+  }
+}

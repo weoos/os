@@ -1,0 +1,17 @@
+{
+    "name": "@weoos/cmd",
+    "version": "0.0.1",
+    "main": "src/index.ts",
+    "module": "src/index.ts",
+    "types": "src/index.ts",
+    "sideEffects": ["*.css", "*.less", "*.scss", "*.sass"],
+    "private": true,
+    "files": [
+      "dist"
+    ],
+    "dependencies": {
+      "@weoos/utils": "workspace:*",
+      "@weoos/disk": "workspace:*"
+    }
+}
+  
