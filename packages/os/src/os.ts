@@ -24,7 +24,13 @@ export class WebOS {
     }
 
     static instance: WebOS;
-    constructor (container?: string|HTMLElement) {
+    constructor ({
+        container,
+        title = 'Welcome to WebOS! Try running "help".\n',
+    }: {
+        container?: string|HTMLElement,
+        title?: string
+    } = {}) {
         // ! 单例模式
         if (WebOS.instance) return WebOS.instance;
         WebOS.instance = this;
@@ -32,7 +38,7 @@ export class WebOS {
 
         this.term = new WebTerm({
             style: { padding: 10 },
-            title: 'Welcome to WebOS! Try running "help".\n',
+            title,
             container,
             header: this.header,
         });
