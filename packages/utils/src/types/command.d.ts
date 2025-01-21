@@ -36,7 +36,7 @@ export interface ICommandProvider<T=any> {
         setPwd: (v: string) => void;
         clearTerminal: ()=>void;
         getHeader: ()=>string,
-        openEditor: (v: string, saveEdit: (v:string)=>void) => void;
+        openEditor: (options: {path: string, content: string, save: (v:string)=>void}) => void;
     }) => IPromiseMaybe<string|boolean>
     registerCommand? (command: ICommand<T>): IOprateResult;
     removeCommand? (name: string): IOprateResult;

@@ -61,12 +61,23 @@ function buildSingle (name: string) {
         module: esm,
         typings: `index.d.ts`,
     };
+    const pkgs = pkg.dependencies || {};
+
+    if (Object.keys(pkgs).length > 0) {
+        for (const key in pkgs) {
+            if (key.startsWith('@weoos/')) {
+                pkgs[key] = mainPkg.version;
+            }
+        }
+        newPkg.dependencies = pkgs;
+    }
     [
         'description', 'repository', 'keywords', 'author',
         'license', 'bugs', 'homepage', 'publishConfig'
     ].forEach(name => {
         newPkg[name] = pkg[name] || mainPkg[name] || '';
     });
+
     fs.writeFileSync(`${dist}/package.json`, JSON.stringify(newPkg, null, 4));
 
     const afterBuild = `${base}/after-build.js`;
@@ -74,6 +85,8 @@ function buildSingle (name: string) {
     if (fs.existsSync(afterBuild)) {
         execSync(`node ${afterBuild}`);
     }
+
+    execSync(`npx vite build -m=iife_${name}`);
 }
 
 

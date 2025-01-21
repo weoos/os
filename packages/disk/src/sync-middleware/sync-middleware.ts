@@ -25,9 +25,9 @@ export class SyncMiddleware {
 
     async init (backend: IDiskBankEnd) {
         const promises: Promise<void>[] = [];
-        console.log('sync middleware traverse');
+        // console.log('sync middleware traverse');
         await backend.traverseContent((name, content) => {
-            console.log(`sync middleware traverse: name=${name}`);
+            // console.log(`sync middleware traverse: name=${name}`);
             promises.push((async () => {
                 const data = await content;
                 this.fileMap[name] = data || createDirContent().data;

@@ -3,7 +3,10 @@
   "compilerOptions": {
     "experimentalDecorators": true,
     "baseUrl": ".",
-    "types": ["../../build/env.d.ts"]
+    "types": [
+      "../../build/env.d.ts",
+      "localforage"
+    ]
   },
   "include": [
     "src"

@@ -121,8 +121,12 @@ export class CommandProvider implements ICommandProvider {
                 if (this.disk.isDir(arg0)) return `Target is Not File: ${arg0}`;
                 const v = cmd.cat(arg0);
                 if (v === null) return `Open file fail: ${arg0}`;
-                openEditor(v, (content) => {
-                    this.disk.writeSync(arg0, encode(content));
+                openEditor({
+                    path: this.disk.fmtPath(arg0),
+                    content: v,
+                    save: (content) => {
+                        this.disk.writeSync(arg0, encode(content));
+                    }
                 });
                 return false;
             case 'clear': clearTerminal(); return false;
@@ -267,7 +271,7 @@ export class CommandProvider implements ICommandProvider {
             if (common && this.cmd.disk.isDir(commonPath)) {
                 common += '/';
             }
-            console.log(`tab="${value}" parent="${parent}", name="${name}" common="${common}"`);
+            // console.log(`tab="${value}" parent="${parent}", name="${name}" common="${common}"`);
         }
 
         let line = '';

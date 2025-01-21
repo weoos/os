@@ -1,8 +1,14 @@
+/*
+ * @Author: chenzhongsheng
+ * @Date: 2025-01-20 15:30:06
+ * @Description: Coding something
+ */
+import fs from 'fs-extra';
+import path from 'path';
 
 export function upcaseFirstLetter (str) {
     return str.split('-').map(s => s[0].toUpperCase() + s.substring(1)).join('');
 }
-
 
 /*
 ! test
@@ -39,4 +45,22 @@ export function deepAssign<T extends Record<string, any>> (...args: T[]): T {
     const [ head, tail ] = args;
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     return assign2(assign2({} as T, head), tail);
+}
+
+export function traversePackages (callback: (name: string)=>void) {
+
+    let packages: string[] = [];
+    if (process.argv.length > 2) {
+        packages = process.argv.slice(2);
+    } else {
+        packages = fs.readdirSync(
+            path.resolve(__dirname, '../packages')
+        );
+    }
+
+    for (const name of packages) {
+        if (name === '.DS_Store') continue;
+        callback(name);
+    }
+
 }

@@ -22,8 +22,8 @@ export class StorageBackEnd {
         if (usage >= quota) {
             throw new Error('存储空间不足');
         }
-        console.log(`已使用空间: ${usage} 字节`);
-        console.log(`可用空间配额: ${quota} 字节`);
+        // console.log(`已使用空间: ${usage} 字节`);
+        // console.log(`可用空间配额: ${quota} 字节`);
         this.root = await navigator.storage.getDirectory();
         // @ts-ignore
         // window.root = this.root;

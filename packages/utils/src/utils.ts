@@ -240,3 +240,6 @@ export function removeText (text: string, index: number) {
 export function geneText (size: number, fill: string) {
     return new Array(size).fill(fill).join('');
 }
+export function isMac () {
+    return navigator.userAgent.includes('Macintosh');
+}

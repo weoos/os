@@ -17,6 +17,6 @@
   "dependencies": {
     "@weoos/cmd": "workspace:*",
     "@weoos/utils": "workspace:*",
-    "web-term-ui": "^0.0.8"
+    "web-term-ui": "^0.0.10"
   }
 }

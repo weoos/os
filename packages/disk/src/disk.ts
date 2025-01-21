@@ -54,7 +54,7 @@ export class Disk implements IDisk {
         Disk.instance = this;
         this.syncMiddleware = new SyncMiddleware();
         if (StorageBackEnd.Supported()) {
-            console.log('StorageBackEnd');
+            // console.log('StorageBackEnd');
             this.backend = new StorageBackEnd();
         } else if (IDBBackEnd.Supported()) {
             console.log('IDBBackEnd');

@@ -3,10 +3,10 @@
  * @Date: 2024-12-22 13:04:28
  * @Description: Coding something
  */
-// import { WebTerm } from 'web-term-ui';
-import { WebTerm } from './npm';
+import { WebTerm } from 'web-term-ui';
 import type { ICommandInfo } from '@weoos/cmd';
 import { CommandProvider } from '@weoos/cmd';
+import { isMac } from '@weoos/utils';
 
 export class WebOS {
     term: WebTerm;
@@ -18,8 +18,6 @@ export class WebOS {
     get disk () {
         return this.commandProvider.disk;
     }
-
-    saveEdit: (v: string)=>void;
 
     get header () {
         return `${this.pwd} admin$ `;
@@ -33,8 +31,8 @@ export class WebOS {
         const commandProvider = new CommandProvider();
 
         this.term = new WebTerm({
-            style: { padding: 5 },
-            title: 'Welcome to WebOS!\n',
+            style: { padding: 10 },
+            title: 'Welcome to WebOS! Try running "help".\n',
             container,
             header: this.header,
         });
@@ -55,8 +53,8 @@ export class WebOS {
                     },
                     clearTerminal: () => {this.term.clearTerminal();},
                     getHeader: () => this.header,
-                    openEditor: (v, save) => {
-                        this.term.vi(v);
+                    openEditor: ({ path, content, save }) => {
+                        this.term.vi(content, `Edit ${path} ("${isMac() ? 'cmd' : 'ctrl'}+s" to save, "esc" to exit)`);
                         saveEdit = save;
                     }
                 }

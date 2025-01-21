@@ -1,15 +1,27 @@
 {
-    "name": "tt",
+    "name": "weoos",
     "private": true,
-    "version": "0.0.0",
+    "version": "0.0.1",
     "scripts": {
         "dev": "vite -m=dev",
         "dev:sw": "vite build -m=sw",
         "build:demo": "vite build -m=demo",
         "build": "tsx ./build/build-packages.ts",
+        "pub": "tsx ./build/publish.ts",
         "lint": "eslint --fix --ext .js --ext .ts .",
         "test": "vitest"
     },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/weoos/os"
+    },
+    "homepage": "https://weoos.github.io/os",
+    "bugs": "https://github.com/weoos/os/issues",
+    "license": "MIT",
+    "keywords": [
+        "WebOS",
+        "WeoOS"
+    ],
     "devDependencies": {
         "@babel/preset-env": "^7.21.4",
         "@rollup/plugin-babel": "^6.0.4",
@@ -36,7 +48,7 @@
         "@weoos/utils": "workspace:*",
         "@weoos/os": "workspace:*"
     },
-    "description": "Nodejs for Browser",
+    "description": "Pure front-end OS on Browser",
     "author": "theajack",
     "publishConfig": {
         "registry": "https://registry.npmjs.org"

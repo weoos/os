@@ -10,6 +10,7 @@ import { resolve } from 'path';
 import { babel } from '@rollup/plugin-babel';
 import cssInjectedByJsPlugin from 'vite-plugin-css-injected-by-js';
 import { upcaseFirstLetter, deepAssign } from './build/utils';
+import { copyFileSync, rmdirSync } from 'fs';
 // import commonjs from 'vite-plugin-commonjs';
 
 // mode_[vegame|vephone|]_[extra]
@@ -18,6 +19,7 @@ const Mode = {
     Dev: 'dev',
     BuildSDK: 'sdk',
     BuildDemo: 'demo',
+    BuildIIFE: 'iife',
     Test: 'test',
     DevSW: 'sw',
     // BuildDTS: 'dts',
@@ -40,6 +42,7 @@ export default defineConfig(({ mode }: {mode: string}) => {
         [Mode.Dev]: geneDevConfig,
         [Mode.BuildDemo]: () => geneBuildDemoConfig(),
         [Mode.BuildSDK]: () => geneBuildSDKConfig(pkgName),
+        [Mode.BuildIIFE]: () => geneBuildSDKConfig(pkgName, true),
         [Mode.DevSW]: geneBuildDevWorker,
         [Mode.Test]: () => ({}),
         // [Mode.BuildDTS]: () => geneBuildDTSConfig(extra, pkgName),
@@ -96,14 +99,14 @@ function geneDevConfig (): UserConfig {
 function geneBuildDemoConfig (): UserConfig {
     return {
         plugins: Plugins.Demo,
-        base: '/',
+        base: '/os',
         build: {
             rollupOptions: {
                 output: {
-                    dir: resolve(__dirname, './dist'),
+                    dir: resolve(__dirname, './docs'),
                 },
                 input: {
-                    main: resolve(__dirname, './demo/index.html'),
+                    main: resolve(__dirname, './index.html'),
                 },
             },
         },
@@ -117,10 +120,10 @@ const babelPlugin = () => (
         configFile: resolve(__dirname, './build/babel.config.js'),
     })
 );
-function SDKlibConfig (pkgName: string): Partial<LibraryOptions> {
+function SDKlibConfig (pkgName: string, isIIFE: boolean): Partial<LibraryOptions> {
     return {
-        name: upcaseFirstLetter(pkgName), // 包名
-        formats: [ 'es', 'iife' ], // 打包模式，默认是es和umd都打
+        name: upcaseFirstLetter(`wos-${pkgName}`), // 包名
+        formats: [ isIIFE ? 'iife' : 'es' ], // 打包模式，默认是es和umd都打
         fileName: (format: string) => `${pkgName}.${format}.min.js`,
     };
 }
@@ -142,26 +145,38 @@ const Plugins = {
 };
 
 // ! 构建 SDK 时的配置
-function geneBuildSDKConfig (pkgName: string): UserConfig {
+function geneBuildSDKConfig (pkgName: string, isIIFE = false): UserConfig {
     const pkgRoot = resolve(__dirname, `./packages/${pkgName}`);
 
     // 取SDK包的依赖;
     const deps = require(resolve(pkgRoot, './package.json'));
     // ! VITE 文档说明： 注意，在 lib 模式下使用 'es' 时，build.minify 选项不会缩减空格，因为会移除掉 pure 标注，导致破坏 tree-shaking。
     return {
-        plugins: [ cssInjectedByJsPlugin() ],
+        plugins: [
+            cssInjectedByJsPlugin(),
+            {
+                name: 'iife-copy',
+                writeBundle () {
+                    if (isIIFE) {
+                        const fullName = `${pkgName}.iife.min.js`;
+                        copyFileSync(resolve(pkgRoot, `dist/iife/${fullName}`), resolve(pkgRoot, `dist/${fullName}`));
+                        rmdirSync(resolve(pkgRoot, `dist/iife`), { recursive: true });
+                    }
+                }
+            }
+        ],
         build: {
             minify: true,
             lib: {
                 entry: resolve(pkgRoot, 'src/index.ts'), // 打包的入口文件
-                ...SDKlibConfig(pkgName),
+                ...SDKlibConfig(pkgName, isIIFE),
             },
             rollupOptions: {
                 // 不需要
-                // external: [ ...Object.keys(deps.dependencies) ],
+                external: isIIFE ? [] : Object.keys(deps.dependencies),
                 plugins: Plugins.BuildPackage,
             },
-            outDir: resolve(pkgRoot, 'dist'), // 打包后存放的目录文件
+            outDir: resolve(pkgRoot, `dist${isIIFE ? '/iife' : ''}`), // 打包后存放的目录文件
         },
     };
 }
