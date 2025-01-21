@@ -31,7 +31,7 @@ const os1 = new WebOS('#app');
 const os2 = new WebOS(document.getElementById('app'));
 ```
 
-[typings](https://cdn.jsdelivr.net/npm/@weoos/os/dist/index.d.ts)
+[typings](https://cdn.jsdelivr.net/npm/@weoos/os/index.d.ts)
 
 ```ts
 export declare class WebOS {
