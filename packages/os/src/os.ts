@@ -27,9 +27,11 @@ export class WebOS {
     constructor ({
         container,
         title = 'Welcome to WebOS! Try running "help".\n',
+        padding = 10,
     }: {
         container?: string|HTMLElement,
-        title?: string
+        title?: string,
+        padding?: number,
     } = {}) {
         // ! 单例模式
         if (WebOS.instance) return WebOS.instance;
@@ -37,7 +39,7 @@ export class WebOS {
         const commandProvider = new CommandProvider();
 
         this.term = new WebTerm({
-            style: { padding: 10 },
+            style: { padding },
             title,
             container,
             header: this.header,
