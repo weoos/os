@@ -21,7 +21,7 @@ export class CMD {
 
     // ls : 列出目录内容，用于查看文件和文件夹。
     ls (path?: string) {
-        return this.disk.lsSync(path);
+        return this.disk.ls(path);
     }
     // cd : 切换目录，帮助用户进入不同的文件夹。
     cd (path: string) {
@@ -57,17 +57,17 @@ export class CMD {
     }
     // cat : 查看文件内容，将文件内容输出到终端。
     cat (path: string) {
-        return this.disk.readTextSync(path);
+        return this.disk.readText(path);
     }
     // more : 分屏查看文件内容，适合查看长文件。
     more (path: string) {
         // todo
-        return this.disk.readTextSync(path);
+        return this.disk.readText(path);
     }
     // less : 也是分屏查看文件内容，功能比 more 更强大。
     less (path: string) {
         // todo
-        return this.disk.readTextSync(path);
+        return this.disk.readText(path);
     }
     // head : 查看文件开头的几行内容。
     head (path: string, line: number) {

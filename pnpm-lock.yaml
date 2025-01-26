@@ -129,10 +129,14 @@ importers:
         specifier: workspace:*
         version: link:../utils
       web-term-ui:
-        specifier: ^0.0.10
-        version: registry.npmmirror.com/web-term-ui@0.0.10
+        specifier: ^0.0.11
+        version: registry.npmmirror.com/web-term-ui@0.0.11
 
-  packages/utils: {}
+  packages/utils:
+    dependencies:
+      web-term-ui:
+        specifier: ^0.0.11
+        version: registry.npmmirror.com/web-term-ui@0.0.11
 
 packages:
 
@@ -4672,10 +4676,10 @@ packages:
       - terser
     dev: true
 
-  registry.npmmirror.com/web-term-ui@0.0.10:
-    resolution: {integrity: sha512-tYKvm28AJNfEtCB1WuigHMtGifgmxEajcuC+Hp0uXIzcUfnrfwdHCa99qXHeIkRYx/LF0V48dGY5LhbgCw+/CA==, registry: https://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/web-term-ui/-/web-term-ui-0.0.10.tgz}
+  registry.npmmirror.com/web-term-ui@0.0.11:
+    resolution: {integrity: sha512-Bra5wI6VMJUT6Yr+02acWExJEEZ4v4YqfB+DXKgRrspM9xWUUgJECGz7oLBkdaA71YUobu31QgYEfNRMfNp7zA==, registry: https://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/web-term-ui/-/web-term-ui-0.0.11.tgz}
     name: web-term-ui
-    version: 0.0.10
+    version: 0.0.11
     dependencies:
       eveit: registry.npmmirror.com/eveit@0.0.4
       history-stack: registry.npmmirror.com/history-stack@0.0.8

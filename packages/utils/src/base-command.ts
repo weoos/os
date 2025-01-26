@@ -4,12 +4,13 @@
  * @Description: Coding something
  */
 import type { ICommand, ICommandInfo, ICommandProvider, IFnMaybe, IPromiseMaybe } from './types';
-
+import type { WebTerm } from 'web-term-ui';
 export class BaseCommand<T> implements ICommand<T> {
     name = '';
     helpInfo: IFnMaybe<string> = '';
     helpDetails: IFnMaybe<string> = '';
 
+    term: WebTerm;
     disk: T;
     provider: ICommandProvider;
 

@@ -5,13 +5,10 @@
  */
 
 import type { IFnMaybe, IPromiseMaybe } from './utils';
+import type { WebTerm, ICommandInfo } from 'web-term-ui';
 
+export type { ICommandInfo } from 'web-term-ui';
 
-export interface ICommandInfo {
-    name: string;
-    args: string[];
-    options: Record<string, string|boolean>;
-}
 export type IOprateResult<T extends Record<string, any> = {}> = {
     success: boolean,
     info: string,
@@ -20,11 +17,14 @@ export type IOprateResult<T extends Record<string, any> = {}> = {
 export interface ICommand<T = any> {
     name: string,
     helpDetails?: IFnMaybe<string>;
+    version?: IFnMaybe<string>;
     helpInfo?: IFnMaybe<string>;
-    run(cmd: ICommandInfo, options: {
+    run(cmd: ICommandInfo, context: {
         commands: ICommandInfo[],
         disk: T,
         data: string,
+        term: WebTerm,
+        run: (line: string|ICommandInfo[]) => Promise<string|boolean>;
     }): IPromiseMaybe<string>,
     activate?(disk: T, provider: ICommandProvider): void;
     dispose?(): void;

@@ -7,7 +7,7 @@ import type {
     IOprateResult,
     ICommandInfo, ICommandProvider
 } from './types';
-import { splitPathInfo, type ICommand, asyncAll, runPromiseMaybe, runFnMaybe, encode } from '@weoos/utils';
+import { splitPathInfo, type ICommand, asyncAll, runPromiseMaybe, runFnMaybe, encode, parseCommand } from '@weoos/utils';
 import { CMD } from './cmd';
 import { getMaxCommonHead } from './utils';
 import { InstallCommand } from './inner-commands/install/install-commnd';
@@ -63,12 +63,13 @@ export class CommandProvider implements ICommandProvider {
     cmd: CMD;
     name: string;
 
-
     thirdCommands: Record<string, ICommand> = {};
 
     private installCommand: InstallCommand;
 
-    constructor () {
+    constructor (
+        public methods: Parameters<ICommandProvider['onCommand']>[1]
+    ) {
         this.cmd = new CMD();
 
         this.installCommand = new InstallCommand();
@@ -78,7 +79,6 @@ export class CommandProvider implements ICommandProvider {
         this._loadCommands();
     }
 
-
     getPwd () {
         return this.cmd.pwd();
     }
@@ -87,13 +87,15 @@ export class CommandProvider implements ICommandProvider {
         return this.cmd.disk;
     }
 
-    async onCommand (commands: ICommandInfo[], methods: Parameters<ICommandProvider['onCommand']>[1]): Promise<string|boolean> {
+
+    async onCommand (content: string|ICommandInfo[]): Promise<string|boolean> {
+        const commands = typeof content === 'string' ? parseCommand(content) : content;
         if (commands.length === 0) {
-            return methods.getHeader();
+            return this.methods.getHeader();
         }
         let prev = '';
         for (const item of commands) {
-            const result = await this.runSingleCommand(item, prev, commands, methods);
+            const result = await this.runSingleCommand(item, prev, commands);
             if (result === false) {
                 return false;
             }
@@ -106,8 +108,9 @@ export class CommandProvider implements ICommandProvider {
         cur: ICommandInfo,
         prev: string,
         commands: ICommandInfo[],
-        { clearTerminal, setPwd, openEditor }: Parameters<ICommandProvider['onCommand']>[1]
     ): Promise<string|boolean> {
+
+        const { clearTerminal, setPwd, openEditor } = this.methods;
         // return `execute ${command} ${args.toString()}`;
         const { name, args, options } = cur;
         let result = '';
@@ -179,9 +182,19 @@ export class CommandProvider implements ICommandProvider {
                     if (command.helpDetails && (cur.options['d'])) {
                         // ! 当有helpDetails 时
                         result = runFnMaybe(command.helpDetails);
+                    } else if (command.version && (cur.options['v'] || cur.options['version'])) {
+                        result = runFnMaybe(command.version);
                     } else {
                         result = await runPromiseMaybe(
-                            command.run(cur, { commands, disk: this.disk, data: prev })
+                            command.run(cur, {
+                                commands,
+                                disk: this.disk,
+                                data: prev,
+                                term: (command as any).term,
+                                run: (line: string|ICommandInfo[]) => {
+                                    return this.onCommand(line);
+                                }
+                            })
                         );
                     }
                 } else {
@@ -220,66 +233,44 @@ export class CommandProvider implements ICommandProvider {
         return '';
     }
 
-    onTab (value: string, full: string) {
-        // const { cmd } = this;
-        // const { parent, name } = splitPathInfo(value);
-        // const files = cmd.ls(parent) || [];
-        // console.log('onTab', files, value, parent, name);
-
-        // const results = files.filter(item => item.startsWith(name));
-
-        // let common = getMaxCommonHead(results, name.length);
-
-        // const commonPath = `${parent}${parent ? '/' : ''}${common}`;
-        // if (common && cmd.disk.isDir(commonPath)) {
-        //     common += '/';
-        // }
-        // console.log(`tab="${value}" parent="${parent}", name="${name}" common="${common}"`);
-
-        // let line = '';
-        // if (name === common && results.length > 1) {
-        //     line = results.join(' ');
-        // }
-
-        // return {
-        //     line,
-        //     result: common.replace(name, '')
-        // };
-
+    onTab (range: string, before: string) {
+        // todo 修复 a ab 的 时候直接上屏了 a
         // 是否是对命令进行提示
-        const isCommandTab = !full.includes(' ');
+        const isCommandTab = !before.includes(' ');
 
         let name = '', parent = '', options: string[] = [];
 
         if (isCommandTab) {
             // 对命令进行提示
-            name = value;
+            name = range;
             options = Object.keys(CMD_HELP_MAP);
         } else {
-            const info = splitPathInfo(value);
+            const info = splitPathInfo(range);
             name = info.name;
             parent = info.parent;
             options = this.cmd.ls(parent) || [];
-            console.log('onTab files', options, value, parent, name);
+            console.log('onTab files', options, range, parent, name);
         }
 
         const results = options.filter(item => item.startsWith(name));
         let common = getMaxCommonHead(results, name.length);
 
-        if (!isCommandTab) {
-            const commonPath = `${parent}${parent ? '/' : ''}${common}`;
-            if (common && this.cmd.disk.isDir(commonPath)) {
-                common += '/';
-            }
-            // console.log(`tab="${value}" parent="${parent}", name="${name}" common="${common}"`);
-        }
-
         let line = '';
         if (name === common && results.length > 1) {
             line = results.join(' ');
-        }
-        if (isCommandTab && results.length === 1) {
-            common += ' '; // 补齐命令tab模式后面的空格
+        } else {
+            if (!isCommandTab) {
+                // 如果是文件夹补齐后面的 /
+                const commonPath = `${parent}${parent ? '/' : ''}${common}`;
+                if (common && this.cmd.disk.isDir(commonPath)) {
+                    common += '/';
+                }
+                // console.log(`tab="${value}" parent="${parent}", name="${name}" common="${common}"`);
+            } else {
+                if (results.length === 1) {
+                    common += ' '; // 补齐命令tab模式后面的空格
+                }
+            }
         }
         return {
             line,

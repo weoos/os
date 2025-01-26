@@ -1,6 +1,8 @@
 import type { IPos } from './types';
 import type { IPromiseData, IPromiseMaybe } from './types/utils';
 
+export { parseCommand } from 'web-term-ui';
+
 /*
  * @Author: chenzhongsheng
  * @Date: 2024-11-29 21:41:08
@@ -59,6 +61,7 @@ export function mergeU8s (...u8s: Uint8Array[]) {
 }
 
 export function isU8sEqual (u8s1: Uint8Array, u8s2: Uint8Array) {
+    if (!u8s1 || !u8s2) return false;
     const n1 = u8s1.byteLength;
     if (n1 !== u8s2.byteLength) return false;
     for (let i = 0; i < n1; i++) {
