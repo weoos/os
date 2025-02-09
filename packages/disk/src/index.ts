@@ -16,5 +16,6 @@ export * from './types.d';
 
 export {} from '@weoos/utils';
 
-export const localforage = _localforage;
+// 这样写才会正确的生成dts
+export const localforage: typeof _localforage = _localforage;
 

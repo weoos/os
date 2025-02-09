@@ -13,3 +13,5 @@ export * from './types/index.d';
 export * from './base-command';
 export * from './link';
 export * from './constant';
+
+export type { WebTerm } from 'web-term-ui';

@@ -38,7 +38,7 @@ export class WeoOSEvent<
     constructor ({ id, interval = DefaultInterval }: {
         id?: string,
         interval?: number,
-    }) {
+    } = {}) {
         this.id = id || randomId('ms');
 
         this.timer = setInterval(() => {
@@ -47,12 +47,29 @@ export class WeoOSEvent<
     }
 
 
-    on<T extends keyof IMessageMap> (key: T, listener: (data: IMessageMap[T], info: IMessage<T>)=>void) {
+    on<T extends keyof IMessageMap> (key: T, listener: (data: IMessageMap[T], info: IMessage<T>)=>void): (()=>void) {
         let list = this.lns[key];
         if (!list) {
             list = this.lns[key] = [];
         }
         list.push(listener);
+        return () => {this.off(key, listener);};
+    }
+
+    once<T extends keyof IMessageMap> (key: T, listener: (data: IMessageMap[T], info: IMessage<T>)=>void): (()=>void) {
+        const clear = this.on(key, (data, info) => {
+            listener(data, info);
+            clear();
+        });
+        return clear;
+    }
+
+    off<T extends keyof IMessageMap> (key: T, listener: (data: IMessageMap[T], info: IMessage<T>)=>void) {
+        const list = this.lns[key];
+        if (!list) return;
+        const index = list.indexOf(listener);
+        if (index === -1) return;
+        list.splice(index, 1);
     }
 
     async emit<T extends keyof IMessageMap> (key: T, data?: IMessageMap[T]) {
