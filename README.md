@@ -9,11 +9,11 @@ Pure front-end OS on Browser
 
 [visit](https://weoos.github.io/os)
 
-- @weoos/os: Main lib.
-- @weoos/disk: Disk support
-- @weoos/cmd: Command support
-- @weoos/event: Event bus cross any environment
-- @weoos/utils: utils for @weoos/os
+- @weoos/os: Main lib. [typings](https://cdn.jsdelivr.net/npm/@weoos/os/index.d.ts)
+- @weoos/disk: Disk support. [typings](https://cdn.jsdelivr.net/npm/@weoos/disk/index.d.ts)
+- @weoos/cmd: Command support. [typings](https://cdn.jsdelivr.net/npm/@weoos/cmd/index.d.ts)
+- @weoos/event: Event bus cross any environment. [typings](https://cdn.jsdelivr.net/npm/@weoos/event/index.d.ts)
+- @weoos/utils: utils for @weoos/os. [typings](https://cdn.jsdelivr.net/npm/@weoos/utils/index.d.ts)
 
 ```
 npm i @weoos/os
@@ -27,11 +27,13 @@ const os = new WebOS();
 or use container
 
 ```js
-const os1 = new WebOS('#app');
-const os2 = new WebOS(document.getElementById('app'));
+const os1 = new WebOS({
+	container: '#app',
+});
+const os2 = new WebOS({
+	container: document.getElementById('app'),
+});
 ```
-
-[typings](https://cdn.jsdelivr.net/npm/@weoos/os/index.d.ts)
 
 ```ts
 export declare class WebOS {
@@ -41,8 +43,13 @@ export declare class WebOS {
 	get disk(): Disk;
 	get header(): string;
 	static instance: WebOS;
-	constructor(container?: string | HTMLElement);
-	get registerCommand(): CommandProvider["registerCommand"];
+	constructor({ container, title, padding, enableSync, }?: {
+		container?: string | HTMLElement;
+		title?: string;
+		padding?: number;
+		enableSync?: boolean;
+	});
+	registerCommand(command: ICommand): IOprateResult;
 	get removeCommand(): CommandProvider["removeCommand"];
 }
 ```

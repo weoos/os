@@ -4,13 +4,24 @@
  * @Description: Coding something
  */
 
-import { WebOS, OpenUrlCommand } from '@weoos/os';
+import { WebOS, OpenUrlCommand, Disk } from '@weoos/os';
+// import { WebOS, OpenUrlCommand } from '../packages/os/dist';
 
-const os = new WebOS();
-os.registerCommand(OpenUrlCommand);
+function initOS () {
+    const os = new WebOS({
+        // enableSync: true,
+    });
+    os.registerCommand(OpenUrlCommand);
+    // @ts-ignore
+    window.os = os;
 
-window.os = os;
+    os.disk.watch('/aa',  { recursive: true }, (event, filename) => {
+        console.trace('watch', event, filename);
+    });
+}
 
-os.disk.watch('/aa',  { recursive: true }, (event, filename) => {
-    console.trace('watch', event, filename);
-});
+initOS();
+
+window.initDisk = () => {
+    window.dd = new Disk({ enableSync: true });
+};

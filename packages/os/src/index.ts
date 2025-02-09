@@ -6,3 +6,5 @@
 export * from './os';
 
 export * from '@weoos/cmd';
+
+export { WebTerm, parseCommand, type ICommandInfo } from 'web-term-ui';

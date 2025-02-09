@@ -14,7 +14,9 @@ export * from '../../cmd/src/cmd';
 
 export * from './types.d';
 
-export {} from '@weoos/utils';
+export * from '@weoos/utils';
+
+export { getTypeWithData, createFileContent, createLinkContent, createDirContent } from './file-marker';
 
 // 这样写才会正确的生成dts
 export const localforage: typeof _localforage = _localforage;

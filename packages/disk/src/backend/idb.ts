@@ -4,6 +4,7 @@
  * @Description: Coding something
  */
 
+import type { IPromiseMaybe } from '@weoos/utils';
 import { io, mergeU8s } from '@weoos/utils';
 import type { IFileStats } from '../types';
 import type { IDiskBankEnd } from './storage';
@@ -13,13 +14,13 @@ import { getTypeWithData, createFileContent } from '../file-marker';
 
 export class IDBBackEnd implements IDiskBankEnd {
     async traverseContent (
-        callback: (name: string, content: Promise<Uint8Array|null>) => void,
+        callback: (path: string, content: Promise<Uint8Array|null>, name: string) => IPromiseMaybe<void>,
         path = '',
     ) {
         const keys = await localforage.keys();
         for (const key of keys) {
             if (key.startsWith(path)) {
-                callback(key, localforage.getItem(key) as Promise<Uint8Array>);
+                callback(key, localforage.getItem(key) as Promise<Uint8Array>, splitPathInfo(key).name);
             }
         }
     }
@@ -137,5 +138,10 @@ export class IDBBackEnd implements IDiskBankEnd {
                 callback(splitPathInfo(key));
             }
         }
+    }
+
+    async getType (path: string) {
+        const data = await this.read(path);
+        return getTypeWithData(data);
     }
 }

@@ -8,7 +8,7 @@ import type { Disk } from '../disk';
 import NPath from 'path';
 import { handlePasteFileNames, splitPathInfo } from '../utils';
 import { createSpacialMarker, isTargetType } from '../file-marker';
-import { mergeU8s } from '@weoos/utils';
+import { createPromises, mergeU8s } from '@weoos/utils';
 
 const { data: ZipMarkerData } = createSpacialMarker('zip');
 
@@ -19,35 +19,37 @@ export class Zip {
         target = this.disk.fmtPath(target);
 
         const zip = new JSZip();
+        const { add, run } = createPromises();
         for (let path in paths) {
             path = this.disk.fmtPath(path);
-            this.zipSingleFile(zip, path);
+            add(this.zipSingleFile(zip, path));
         }
+        await run();
         const data = await zip.generateAsync({ type: 'uint8array' });
 
         const { parent } = splitPathInfo(target);
         const map = handlePasteFileNames(
             [ target ],
             parent,
-            this.disk.lsSync(parent) || []
+            await this.disk.ls(parent) || []
         );
         this.disk.createFile(map[target], mergeU8s(ZipMarkerData, data));
     }
 
-    private zipSingleFile (zip: JSZip, path: string) {
-        const type = this.disk.syncMiddleware.getType(path);
+    private async zipSingleFile (zip: JSZip, path: string) {
+        const type = await this.disk.getType(path);
         if (type === 'empty') return;
 
         if (type === 'dir') {
             const folder = zip.folder(path);
             if (!folder) return;
-            let paths = this.disk.lsSync(path) || [];
+            let paths = await this.disk.ls(path) || [];
             paths = paths.map(name => NPath.join(path, name));
             for (const path of paths) {
                 this.zipSingleFile(folder, path);
             }
         } else {
-            const data = this.disk.readSync(path);
+            const data = await this.disk.read(path);
             if (!data) return;
             zip.file(path, data, { binary: true });
         }
@@ -56,7 +58,7 @@ export class Zip {
 
     async unzip (path: string, target?: string) {
 
-        const origin = this.disk.readSync(path);
+        const origin = await this.disk.read(path);
         const data = this.getZipData(origin);
         if (!data) return;
 
@@ -76,7 +78,7 @@ export class Zip {
         const map = handlePasteFileNames(
             sources,
             target,
-            this.disk.lsSync(target) || []
+            await this.disk.ls(target) || []
         );
         for (const file of files) {
 
@@ -125,8 +127,8 @@ export class Zip {
         return list;
     }
 
-    isZip (path: string) {
-        const data = this.disk.readSync(path);
+    async isZip (path: string) {
+        const data = await this.disk.read(path);
         if (!data) return false;
         return this.isZipData(data);
     }
