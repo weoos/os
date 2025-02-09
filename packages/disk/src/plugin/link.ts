@@ -45,7 +45,7 @@ export class Link {
 
     constructor (
         public backend: IDiskBankEnd,
-        public syncMiddleware: SyncMiddleware
+        public syncMiddleware?: SyncMiddleware
     ) {
     }
 
@@ -54,7 +54,7 @@ export class Link {
         return this._get(u8s!);
     }
     getSync (path: string, data?: Uint8Array) {
-        const u8s = data || (this.syncMiddleware.read(path)!);
+        const u8s = data || (this.syncMiddleware?.read(path)!);
         return this._get(u8s);
     }
 

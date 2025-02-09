@@ -108,7 +108,7 @@ export class Watch {
         });
     }
     // 绝对路径
-    fireChange (path: string, emit = true) {
+    async fireChange (path: string, emit = true) {
         if (emit) {
             this.events.emit('watch', {
                 type: ChangType.Change,
@@ -118,9 +118,30 @@ export class Watch {
         const list = this.fileWatchers[path];
         let after: (()=>void)|null = null;
         if (list && list.length > 0) {
-            const prev = this.disk.statSync(path);
+            const prev = await this.disk.stat(path);
             after = () => {
-                list.forEach(listener => listener(this.disk.statSync(path), prev));
+                list.forEach(async listener => listener(await this.disk.stat(path), prev));
+            };
+        }
+        this.watchers.forEach(watcher => {
+            watcher.checkChange(path, 'change');
+        });
+        return after;
+    }
+    // 绝对路径
+    fireChangeSync (path: string, emit = true) {
+        if (emit) {
+            this.events.emit('watch', {
+                type: ChangType.Change,
+                path,
+            });
+        }
+        const list = this.fileWatchers[path];
+        let after: (()=>void)|null = null;
+        if (list && list.length > 0) {
+            const prev = this.disk._sync.stat(path);
+            after = () => {
+                list.forEach(listener => listener(this.disk._sync.stat(path), prev));
             };
         }
         this.watchers.forEach(watcher => {

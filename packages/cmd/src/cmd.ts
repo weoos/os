@@ -3,19 +3,24 @@
  * @Date: 2024-12-09 23:10:07
  * @Description: Coding something
  */
-import { Disk, type IFileType } from '@weoos/disk';
+import { Disk, getTypeWithData, type IFileType } from '@weoos/disk';
 
 export class CMD {
 
     static instance: CMD;
     disk: Disk;
     ready: Promise<void>;
-    constructor () {
+    constructor (enableSync = false) {
         // ! 单例模式
-        if (CMD.instance) return CMD.instance;
+        if (CMD.instance) {
+            CMD.instance.disk._initSyncAlone(enableSync);
+            return CMD.instance;
+        }
         CMD.instance = this;
 
-        this.disk = new Disk();
+        this.disk = new Disk({
+            enableSync
+        });
         this.ready = this.disk.ready;
     }
 
@@ -70,25 +75,25 @@ export class CMD {
         return this.disk.readText(path);
     }
     // head : 查看文件开头的几行内容。
-    head (path: string, line: number) {
+    async head (path: string, line: number) {
         // todo
-        const text = this.disk.readTextSync(path);
+        const text = await this.disk.readText(path);
         if (!text) return '';
         return text.split('\n').slice(0, line).join('\n');
     }
 
     // tail : 查看文件结尾的几行内容。
-    tail (path: string, line: number) {
+    async tail (path: string, line: number) {
         // todo
-        const text = this.disk.readTextSync(path);
+        const text = await this.disk.readText(path);
         if (!text) return '';
         return text.split('\n').slice(-line).join('\n');
     }
     // grep : 在文件中搜索指定的字符串。
     // todo
-    grep (path: string, reg: string|RegExp) {
+    async grep (path: string, reg: string|RegExp) {
         // todo
-        const text = this.disk.readTextSync(path);
+        const text = await this.disk.readText(path);
         if (!text) return [ '' ];
         if (typeof reg === 'string') {
             reg = new RegExp(reg, 'g');
@@ -102,7 +107,7 @@ export class CMD {
         return result;
     }
     // find : 在指定目录下查找文件。
-    find (
+    async find (
         path: string, { name, type }: {
             name?: string|RegExp,
             type?: IFileType
@@ -110,21 +115,39 @@ export class CMD {
     ) {
         const reg = (typeof name === 'string') ? new RegExp(name) : name;
         const results: string[] = [];
-        this.disk.syncMiddleware.traverse(path, ({ path, name }) => {
-            let pass = true;
-            if (reg && !reg.test(name)) {
-                pass = false;
-            }
-            if (pass && type) {
-                const fileType = this.disk.syncMiddleware.getType(path);
-                if (fileType !== type) {
+        if (this.disk._sync) {
+            this.disk._sync.syncMiddleware.traverse(path, ({ path, name }) => {
+                let pass = true;
+                if (reg && !reg.test(name)) {
                     pass = false;
                 }
-            }
-            if (pass) {
-                results.push(path);
-            }
-        });
+                if (pass && type) {
+                    const fileType = this.disk._sync.syncMiddleware.getType(path);
+                    if (fileType !== type) {
+                        pass = false;
+                    }
+                }
+                if (pass) {
+                    results.push(path);
+                }
+            });
+        } else {
+            await this.disk.backend.traverseContent(async (path, content, name) => {
+                let pass = true;
+                if (reg && !reg.test(name)) {
+                    pass = false;
+                }
+                if (pass && type) {
+                    const fileType = getTypeWithData(await content);
+                    if (fileType !== type) {
+                        pass = false;
+                    }
+                }
+                if (pass) {
+                    results.push(path);
+                }
+            }, path);
+        }
         return results;
     }
     // zip : 压缩文件成 zip 格式
@@ -141,8 +164,8 @@ export class CMD {
         return this.disk.zip(files, target);
     }
     // du : 查看文件或目录占用磁盘空间大小。
-    du (path: string) {
-        return this.disk.statSync(path).size;
+    async du (path: string) {
+        return (await this.disk.stat(path)).size;
     }
     // chmod : 改变文件或目录的权限。
     // chown : 改变文件或目录的所有者。

@@ -1,219 +1,283 @@
 /*
  * @Author: chenzhongsheng
- * @Date: 2024-12-20 19:17:36
+ * @Date: 2025-02-08 00:38:21
  * @Description: Coding something
  */
-/*
-用于跨页面 跨worker的数据同步
-机制：使用 localforage 存储变更信息
-每个系统里定时读取变更信息，如有变更则同步更新 syncMiddleware
+import { decode, isU8sEqual, runPromises, splitPathInfo } from '@weoos/utils';
+import type { Disk, ICreateOpt } from '../disk';
+import { SyncMiddleware } from '../sync-middleware/sync-middleware';
+import { getParentPath, handlePasteFileNames, pt } from '../utils';
+import { link } from './link';
+import type { IFileStats, IFileType } from '../types';
+import { createFileContent, getTypeWithData } from '../file-marker';
 
-数据结构
-
-webos_fs_update_info: [{
-    id: string,
-    time: timestamp,
-    changes: {
-        path: 'create'|'remove'|'change',
+// 所有的同步执行代码
+export class SyncProxy {
+    syncMiddleware: SyncMiddleware;
+    disk: Disk;
+    constructor (disk: Disk) {
+        this.syncMiddleware = new SyncMiddleware();
+        this.disk = disk;
     }
-}]
 
-1. 每次启动检查, 过期的都移除（大于INTERVAL*2认为过期）
-2. 每次变更先写入缓存，定时一起写入
-3. 定时检查变更，用于同步更新
-4. 写入
-*/
+    async init () {
+        await this.syncMiddleware.init(this.backend);
+    }
 
-import localforage from 'localforage';
-import type { Disk } from '../disk';
-import { ChangType } from '../enum';
-import { isU8sEqual } from '@weoos/utils';
+    fmtPath (path: string) {
+        return this.disk.fmtPath(path);
+    }
 
-const CHECK_INTERVAL = 500;
+    get _link () {
+        return this.disk._link;
+    }
+    get _watch () {
+        return this.disk._watch;
+    }
+    get backend () {
+        return this.disk.backend;
+    }
 
-export interface ChangeInfo {
-    id: string,
-    time: number,
-    changes: Record<string, ChangType>,
-}
+    size (path: string = '/') {
+        return (this.syncMiddleware.stat(this.fmtPath(path))).size;
+    }
+    cd (path: string) {
+        path = this.fmtPath(path);
+        if (!this.isDir(path)) return false;
+        this.disk.current = path;
+        return true;
+    }
+    isDir (path: string) {
+        path = this.fmtPath(path);
+        return path === '/' || (this.getType(path) === 'dir');
+    }
+    getType (path: string) {
+        return this.syncMiddleware.getType(this.fmtPath(path));
+    }
+    pwd () {
+        return this.disk.current;
+    }
+    copy (files: string|string[]) {
+        this.disk.copy(files);
+        return true;
+    }
+    move (source: string, target: string) {
+        const success = this.cut([ source ]);
+        if (!success) return `cut file fail`;
+        const newFull = this.fmtPath(target);
+        const oldFull = this.fmtPath(source);
+        const { parent } = splitPathInfo(newFull);
+        const renameMap = { [oldFull]: newFull };
+        return this.paste(parent, renameMap);
+    }
+    cut (files: string|string[]) {
+        this.disk.cut(files);
+        return true;
+    }
+    paste (targetDir: string, renameMap: Record<string, string> = {}): string {
+        const clipboard = this.disk.clipboard;
+        if (!clipboard.active) return 'No Copy Files';
+        const lsResult = this.ls(targetDir);
 
-const Storage = (() => {
-    const KEY = 'webos_fs_update_info';
-
-    const store = localforage.createInstance({
-        name: 'sync-manager',
-        driver: localforage.INDEXEDDB,
-    });
-
-    const id = Math.random().toString(16).substring(2);
-
-    const _write = (data) => {
-        return store.setItem(KEY, data);
-    };
-
-    // window._testSync = () => {
-    //     localforage.getItem(KEY).then((d) => {
-    //         console.log('KEY', d);
-    //     });
-    // };
-
-    return {
-        id,
-        async writeData (data: ChangeInfo[]) {
-            await _write(data);
-        },
-        async writeChanges (changes: Record<string, ChangType>) {
-            const data = await this.read();
-            const item: ChangeInfo = {
-                time: Date.now(),
-                id,
-                changes,
-            };
-            if (data.length === 0) {
-                data.push(item);
+        const currentChildren = lsResult || [];
+        const { isCut, paths } = clipboard;
+        console.log('pasteMap 1', paths, targetDir, currentChildren, renameMap);
+        const pasteMap = handlePasteFileNames(
+            paths,
+            this.fmtPath(targetDir),
+            currentChildren,
+            renameMap,
+        );
+        console.log('pasteMap', pasteMap);
+        const fails: string[] = [];
+        // copy
+        for (const key in pasteMap) {
+            const sourcePath = key;
+            const targetPath = pasteMap[sourcePath];
+            if (!this.copySingle(sourcePath, targetPath)) {
+                fails.push(sourcePath);
             } else {
-                // ! 按时间顺序插入
-                const index = data.findIndex(v => v.time > item.time);
-                if (index === -1) {
-                    data.push(item);
-                } else {
-                    data.splice(index, 0, item);
+                // 如果复制成功且是剪切 则删除源文件
+                if (isCut) {
+                    this.remove(sourcePath);
                 }
             }
-            await _write(data);
-        },
-        async read () {
-            const data = await store.getItem<ChangeInfo[]>(KEY);
-            if (!Array.isArray(data)) return [];
-            return data;
         }
-    };
-})();
-
-export class SyncManager {
-
-
-    tempChange: Record<string, ChangType> = {};
-
-    timer: any;
-
-    lastOprateId: string = '';
-
-    disk: Disk;
-    private offWatch: ()=>void;
-
-    constructor (disk: Disk) {
-        this.disk = disk;
-
-        this.timer = setInterval(async () => {
-            await this.checkUpdate();
-            await this.checkWriteChange();
-        }, CHECK_INTERVAL);
-        const fn = ({ path, type }: {type: ChangType, path: string}) => {
-            this.tempChange[path] = type;
-        };
-        this.disk._watch.events.on('watch', fn);
-        this.offWatch = () => {
-            this.disk._watch.events.off('watch', fn);
-        };
+        if (fails.length > 0) {
+            return `Copy Failed: ${fails.join(', ')}`;
+        }
+        return '';
     }
-
-
-    // 检查更新的文件
-    async checkUpdate () {
-        const data = await Storage.read();
-        if (data.length === 0) return;
-
-        const removeIndexes: number[] = [];
-        const now = Date.now();
-        const isOutDate = (time: number) => (now - time) > CHECK_INTERVAL * 2;
-
-        const changes: Record<string, ChangType> = {};
-        for (let i = 0; i < data.length; i++) {
-            const item = data[i];
-
-            if (isOutDate(item.time)) {
-                removeIndexes.push(i);
-                continue;
-            }
-            if (item.id === Storage.id) continue; // 忽略自身变更
-            // 按时间覆盖
-            Object.assign(changes, item.changes);
-        }
-
-        // ! 清理过期记录
-        if (removeIndexes.length) {
-            for (let i = removeIndexes.length - 1; i >= 0; i--) {
-                data.splice(removeIndexes[i], 1);
-            }
-            await Storage.writeData(data);
-        }
-
-        // 此处异步即可
-        this.useChanges(changes);
+    @link
+    ls (path: string = '') {
+        path = this.fmtPath(path);
+        if (!this.isDir(path)) return null;
+        return this.syncMiddleware.ls(path);
     }
+    remove (path: string): boolean {
+        path = this.fmtPath(path);
+        this.backend.remove(path);
+        return this.syncMiddleware.remove(path, path => {
+            this._watch.fireRename(path, true);
+        });
+    }
+    clear () {
+        const result = this.ls('/');
+        if (!result || result.length === 0) return;
+        result.forEach(path => {
+            this.remove(pt.join('/', path));
+        });
+        this.cd('/');
+    }
+    copySingle (source: string, target: string) {
+        // todo
+        const data = this.read(source);
 
-    private async writeFile (path: string) {
-        const data = await this.disk.read(path);
-
+        let type: IFileType = 'empty';
         if (data) {
-            const curData = this.disk.syncMiddleware.pureRead(path);
-            if (isU8sEqual(data, curData)) {
-                return false;
+            type = getTypeWithData(data);
+        } else {
+            type = this.isDir(source) ? 'dir' : 'empty';
+        }
+        if (type === 'empty') return false;
+        if (type === 'file' || type === 'link') {
+            return this.createFile(target, data!, { ensure: true });
+        }
+        // 异步同步需要分开处理
+        const promises: (()=>Promise<any>)[] = [];
+        let allSuccess = true;
+
+        const runCreate = (path: string, type: 'file'|'dir', data?: Uint8Array|null) => {
+            const opt = { ensure: true };
+            let async: () => Promise<boolean> = () => Promise.resolve(true);
+            const success = this._create(path, data || undefined, opt, type === 'dir', (v) => {
+                async = v;
+            });
+            this.createFile(path, data || undefined, opt);
+            if (!success) {
+                allSuccess = false;
+                throw new Error(`create fail: ${path}`);
             }
-            this.disk.syncMiddleware.write(path, data);
+            promises.push(async);
+            return success;
+        };
+
+        runCreate(target, 'dir');
+        this.syncMiddleware.traverseContent((path, content) => {
+            const childTarget = path.replace(source, target);
+            runCreate(childTarget, !!content ? 'file' : 'dir', content);
+        }, source);
+        // 异步需要抽出来单独顺序执行
+        runPromises(promises);
+        return allSuccess;
+    }
+
+    @link
+    read (path: string): Uint8Array | null {
+        return this.syncMiddleware.read(path);
+    }
+    @link
+    readText (path: string): string | null {
+        const data = this.syncMiddleware.read(path);
+        if (!data) return '';
+        return decode(data);
+    }
+    @link
+    write (path: string, data: Uint8Array): boolean {
+        path = this.fmtPath(path);
+        const curData = this.syncMiddleware.pureRead(path);
+        if (isU8sEqual(data, curData)) {
+            // ! 与本地暂存数据一致 则不写防止写覆盖
             return true;
         }
-        return false;
-    }
-
-    private async useChanges (changes: Record<string, ChangType>) {
-        console.log('useChanges', changes);
-        if (Object.keys(changes).length === 0) return;
-
-        // 按路径长度排序，先对短路径操作；这样可以避免上级目录被删除的情况
-        const keys = Object.keys(changes).sort((a, b) => {
-            return a.length - b.length;
-        });
-
-        for (const path of keys) {
-            const type = changes[path];
-            switch (type) {
-                case ChangType.Change:
-                    if (this.disk.existSync(path)) {
-                        if (await this.writeFile(path)) {
-                            this.disk._watch.fireChange(path, false);
-                        }
-                    }
-                    break;
-                case ChangType.Remove:
-                    if (this.disk.existSync(path)) {
-                        this.disk.syncMiddleware.remove(path);
-                        this.disk._watch.fireRename(path, true, false);
-                    }
-                    break;
-                case ChangType.Create:
-                    if (!this.disk.existSync(path)) {
-                        await this.writeFile(path);
-                        this.disk._watch.fireRename(path, false, false);
-                    }
-                    break;
-                default: break;
-            }
+        if (!this.exist(path)) {
+            return this.createFile(path, data);
         }
-
+        const after = this._watch.fireChangeSync(path);
+        const success = this.syncMiddleware.write(path, data);
+        if (!success) return false;
+        this.backend.write(path, data);
+        after?.();
+        return true;
+    }
+    @link
+    append (path: string, data: Uint8Array): boolean {
+        path = this.fmtPath(path);
+        if (!this.exist(path)) {
+            return this.createFile(path, data);
+        }
+        const after = this._watch.fireChangeSync(path);
+        const success = this.syncMiddleware.append(path, data);
+        if (!success) return false;
+        this.backend.append(path, data);
+        after?.();
+        return true;
+    }
+    exist (path: string) {
+        path = this.fmtPath(path);
+        if (path === '/') return true;
+        return this.syncMiddleware.exist(path);
     }
 
-    async checkWriteChange () {
-        if (Object.keys(this.tempChange).length === 0) return;
-        console.log('sync-manager write', JSON.stringify(this.tempChange, null, 2));
-        await Storage.writeChanges(this.tempChange);
-        this.tempChange = {};
+    // @link
+    stat (path: string, recursive = true): IFileStats {
+        return this.disk._transStat(this.syncMiddleware.stat(this.fmtPath(path), recursive));
+    }
+    createFile (path: string, content?: Uint8Array | undefined, opt: ICreateOpt = {}): boolean {
+        return this._create(path, content, opt);
+    }
+    createDir (path: string, opt: ICreateOpt = {}): boolean {
+        return this._create(path, undefined, opt, true);
+    }
+    createLink (path: string, target: string, opt: ICreateOpt = {}) {
+        return this.createFile(path, createFileContent('link', target), opt);
+    }
+    _create (
+        path: string,
+        content?: Uint8Array | undefined,
+        { overwrite, ensure }: ICreateOpt = {},
+        isDir: boolean = false,
+        onCreateAsync?: (v: ()=>Promise<boolean>)=>void
+    ) {
+        path = this.fmtPath(path);
+        const parent = getParentPath(path);
+        if (!ensure && !this.exist(parent)) return false;
+        const ready: null|Promise<void> = ensure ? this.ensureParentPath(path) : null;
+        const success = (
+            isDir ?
+                this.syncMiddleware.createDir(path, overwrite) :
+                // @ts-ignore
+                this.syncMiddleware.createFile(path, content, overwrite)
+        );
+        if (!success) return false;
+        this._watch.fireRename(path);
+        const create = async () => {
+            if (ensure) await ready;
+            // todo 失败了需要撤销
+            return isDir ?
+                this.backend.createDir(path, overwrite) :
+                this.backend.createFile(path, content, overwrite);
+        };
+        if (onCreateAsync) {
+            // 不执行异步，将异步回调出去
+            onCreateAsync(create);
+        } else {
+            create();
+        }
+        return true;
     }
 
-    clear () {
-        clearInterval(this.timer);
-        this.offWatch();
+    ensureParentPath (path: string) {
+        // ! 此处为了保证同步ensure中，storage中父目录存在
+        // ! 只使用同步方法和异步方法单独执行
+        this._ensureParentPath(path);
+        return this.disk._ensureParentPath(path);
     }
-
+    _ensureParentPath (path: string) {
+        path = getParentPath(path);
+        if (this.exist(path)) return;
+        this._ensureParentPath(path);
+        // 不执行异步逻辑
+        this._create(path, undefined, {}, true, () => {});
+    }
 }

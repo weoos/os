@@ -68,9 +68,10 @@ export class CommandProvider implements ICommandProvider {
     private installCommand: InstallCommand;
 
     constructor (
+        enableSync: boolean,
         public methods: Parameters<ICommandProvider['onCommand']>[1]
     ) {
-        this.cmd = new CMD();
+        this.cmd = new CMD(enableSync);
 
         this.installCommand = new InstallCommand();
         // 安装默认插件
@@ -120,27 +121,27 @@ export class CommandProvider implements ICommandProvider {
         switch (name as ICommandType) {
             case 'vi':
                 if (!arg0) return `Target is empty`;
-                if (!this.disk.existSync(arg0)) return `Target file not exists: ${arg0}`;
-                if (this.disk.isDir(arg0)) return `Target is Not File: ${arg0}`;
-                const v = cmd.cat(arg0);
+                if (!await this.disk.exist(arg0)) return `Target file not exists: ${arg0}`;
+                if (await this.disk.isDir(arg0)) return `Target is Not File: ${arg0}`;
+                const v = await cmd.cat(arg0);
                 if (v === null) return `Open file fail: ${arg0}`;
                 openEditor({
                     path: this.disk.fmtPath(arg0),
                     content: v,
                     save: (content) => {
-                        this.disk.writeSync(arg0, encode(content));
+                        this.disk.write(arg0, encode(content));
                     }
                 });
                 return false;
             case 'clear': clearTerminal(); return false;
 
             case 'ls':
-                const ls = cmd.ls(arg0)?.join(' ');
+                const ls = (await cmd.ls(arg0))?.join(' ');
                 result = (typeof ls !== 'string') ? NotDirText : (ls || ' '); // ! 为空给一个空格占位
                 break;
             case 'mkdir': await cmd.mkdir(arg0); break;
             case 'cd': {
-                if (cmd.cd(arg0)) {
+                if (await cmd.cd(arg0)) {
                     setPwd(cmd.pwd());
                 } else {
                     result = NotDirText;
@@ -154,7 +155,7 @@ export class CommandProvider implements ICommandProvider {
             case 'rmdir': if (!await cmd.rmdir(arg0)) {
                 result = ExistsText;
             }; break;
-            case 'cat': result = cmd.cat(arg0) || ''; break;
+            case 'cat': result = await cmd.cat(arg0) || ''; break;
             case 'touch': if (!await cmd.touch(arg0)) {
                 result = ExistsText;
             }; break;
@@ -163,16 +164,16 @@ export class CommandProvider implements ICommandProvider {
             }; break;
             case 'mv': await cmd.mv(arg0, arg1); break;
             case 'cp': await cmd.cp(arg0, arg1); break;
-            case 'more': result = cmd.more(arg0) || ''; break;
-            case 'less': result = cmd.less(arg0) || ''; break;
-            case 'head': result = cmd.head(arg0, parseInt(arg1)) || ''; break;
-            case 'tail': result = cmd.tail(arg0, parseInt(arg1)) || ''; break;
-            case 'grep': result = cmd.grep(arg0, arg1).join('\r\n'); break;
-            case 'find': result = cmd.find(arg0, options).join('\r\n'); break;
+            case 'more': result = await cmd.more(arg0) || ''; break;
+            case 'less': result = await cmd.less(arg0) || ''; break;
+            case 'head': result = await cmd.head(arg0, parseInt(arg1)) || ''; break;
+            case 'tail': result = await cmd.tail(arg0, parseInt(arg1)) || ''; break;
+            case 'grep': result = (await cmd.grep(arg0, arg1)).join('\r\n'); break;
+            case 'find': result = (await cmd.find(arg0, options)).join('\r\n'); break;
             case 'zip': await cmd.zip(args.slice(1), arg0); break;
             case 'unzip': await cmd.unzip(arg0, arg1); break;
             case 'tar': await cmd.zip(args.slice(1), arg0); break;
-            case 'du': cmd.du(arg0); break;
+            case 'du': result = `size = ${await cmd.du(arg0)}`; break;
 
             case 'help': result = CMDHelpInfo(); break;
 
@@ -233,7 +234,7 @@ export class CommandProvider implements ICommandProvider {
         return '';
     }
 
-    onTab (range: string, before: string) {
+    async onTab (range: string, before: string) {
         // todo 修复 a ab 的 时候直接上屏了 a
         // 是否是对命令进行提示
         const isCommandTab = !before.includes(' ');
@@ -248,8 +249,8 @@ export class CommandProvider implements ICommandProvider {
             const info = splitPathInfo(range);
             name = info.name;
             parent = info.parent;
-            options = this.cmd.ls(parent) || [];
-            console.log('onTab files', options, range, parent, name);
+            options = await this.cmd.ls(parent) || [];
+            // console.log('onTab files', options, range, parent, name);
         }
 
         const results = options.filter(item => item.startsWith(name));
@@ -262,7 +263,7 @@ export class CommandProvider implements ICommandProvider {
             if (!isCommandTab) {
                 // 如果是文件夹补齐后面的 /
                 const commonPath = `${parent}${parent ? '/' : ''}${common}`;
-                if (common && this.cmd.disk.isDir(commonPath)) {
+                if (common && await this.cmd.disk.isDir(commonPath)) {
                     common += '/';
                 }
                 // console.log(`tab="${value}" parent="${parent}", name="${name}" common="${common}"`);
@@ -316,9 +317,9 @@ export class CommandProvider implements ICommandProvider {
     private async _loadCommands () {
         await this.disk.ready;
 
-        if (!this.disk.existSync(CommandFilesDir)) return;
+        if (!await this.disk.exist(CommandFilesDir)) return;
 
-        const files = this.disk.lsSync(CommandFilesDir);
+        const files = await this.disk.ls(CommandFilesDir);
 
         if (!files) return;
 
@@ -326,8 +327,8 @@ export class CommandProvider implements ICommandProvider {
 
         for (const name of files) {
             const path = commandFilePath(name);
-            if (this.disk.isDir(path)) continue;
-            const content = this.disk.readTextSync(path);
+            if (await this.disk.isDir(path)) continue;
+            const content = await this.disk.readText(path);
             if (!content) continue;
             all.add(this.installCommand._installFromText(content));
         }

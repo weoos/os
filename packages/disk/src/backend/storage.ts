@@ -1,3 +1,4 @@
+import type { IPromiseMaybe } from '@weoos/utils';
 import { io, isU8sEqual } from '@weoos/utils';
 import type { IFileStats, IFileType } from '../types';
 import { splitPath } from '../utils';
@@ -122,7 +123,7 @@ export class StorageBackEnd {
 
     // content = null 表示为 目录
     async traverseContent (
-        callback: (path: string, content: Promise<Uint8Array|null>) => void,
+        callback: (path: string, content: Promise<Uint8Array|null>, name: string) => IPromiseMaybe<void>,
         path = '',
     ) {
         let dir: FileSystemDirectoryHandle;
@@ -141,16 +142,16 @@ export class StorageBackEnd {
     private async _traverseContent (
         path: string,
         dir: FileSystemDirectoryHandle,
-        callback: (path: string, content: Promise<Uint8Array|null>) => void,
+        callback: (path: string, content: Promise<Uint8Array|null>, name: string) => IPromiseMaybe<void>,
     ) {
         for await (const item of dir.entries()) {
             const [ name, dir ] = item;
             const fullPath = `${path}/${name}`;
             if (dir.kind === 'directory') {
-                callback(fullPath, Promise.resolve(null));
+                await callback(fullPath, Promise.resolve(null), name);
                 await this._traverseContent(fullPath, dir, callback);
             } else {
-                callback(fullPath, this._readFile(dir));
+                await callback(fullPath, this._readFile(dir), name);
             }
         }
     }
@@ -163,7 +164,7 @@ export class StorageBackEnd {
 
     // 查看目录下的文件列表，path为绝对路径
     async ls (path: string): Promise<string[]|null> {
-        console.log(`ls ${path}`);
+        // __DEV__ && console.log(`ls ${path}`);
         const { type, dir } = await this.getHandleByPath(path);
         if (type !== 'dir') {
             return null;
@@ -273,11 +274,16 @@ export class StorageBackEnd {
         return { name: tail, dir: current };
     }
 
+    async getType (path: string) {
+        const { type } = await this.getHandleByPath(path);
+        return type;
+    }
+
 }
 
 export type IDiskBankEnd = Pick<
     InstanceType<typeof StorageBackEnd>,
     'init'|'read'|'write'|'append'|'remove'|
     'stat'|'exist'|'ls'|'createDir'|'createFile'|
-    'traverseContent'
+    'traverseContent'|'getType'
 >;

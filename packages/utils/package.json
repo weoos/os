@@ -15,6 +15,6 @@
     "dist"
   ],
   "dependencies": {
-    "web-term-ui": "^0.0.11"
+    "web-term-ui": "^0.0.13"
   }
 }

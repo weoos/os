@@ -29,15 +29,21 @@ export class WebOS {
         container,
         title = 'Welcome to WebOS! Try running "help".\n',
         padding = 10,
+        enableSync = false,
     }: {
         container?: string|HTMLElement,
         title?: string,
         padding?: number,
+        enableSync?: boolean,
     } = {}) {
         // ! 单例模式
-        if (WebOS.instance) return WebOS.instance;
+        if (WebOS.instance) {
+            WebOS.instance.disk._initSyncAlone(enableSync);
+            return WebOS.instance;
+        }
         WebOS.instance = this;
-        const commandProvider = new CommandProvider({
+
+        const commandProvider = new CommandProvider(enableSync, {
             setPwd: (v) => {
                 this.pwd = v;
                 this.term.setHeader(this.header);
@@ -45,10 +51,13 @@ export class WebOS {
             clearTerminal: () => {this.term.clearTerminal();},
             getHeader: () => this.header,
             openEditor: ({ path, content, save }) => {
-                this.term.vi(content, {
+                const editor = this.term.edit(content, {
                     title: `Edit ${path} ("${isMac() ? 'cmd' : 'ctrl'}+s" to save, "esc" to exit)`
                 });
-                saveEdit = save;
+                editor.on('edit-done', v => {
+                    save(v);
+                    this.term.newLine();
+                });
             }
         });
 
@@ -59,9 +68,6 @@ export class WebOS {
             header: this.header,
         });
         this.commandProvider = commandProvider;
-
-        let saveEdit: (v: string)=>void;
-
         this.term.on('enter', async content => {
             if (!content) {
                 this.term.write(content);
@@ -72,18 +78,14 @@ export class WebOS {
                 result ? this.term.write(result) : this.term.newLine();
             }
         });
-        this.term.on('tab', (before) => {
+        this.term.on('tab', async (before) => {
             const range = before.substring(before.lastIndexOf(' ') + 1);
-            const data = this.commandProvider.onTab(range, before);
+            const data = await this.commandProvider.onTab(range, before);
             const { line, result } = data;
             if (line) {
                 this.term.write(line, { clear: false });
             }
-            this.term.insertEdit(result);
-        });
-        this.term.on('edit-done', v => {
-            saveEdit?.(v);
-            this.term.newLine();
+            this.term.insertText(result);
         });
     }
 
@@ -95,5 +97,4 @@ export class WebOS {
     get removeCommand (): CommandProvider['removeCommand'] {
         return this.commandProvider.removeCommand.bind(this.commandProvider) || (() => {});
     }
-
 }

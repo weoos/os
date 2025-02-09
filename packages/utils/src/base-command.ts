@@ -5,6 +5,15 @@
  */
 import type { ICommand, ICommandInfo, ICommandProvider, IFnMaybe, IPromiseMaybe } from './types';
 import type { WebTerm } from 'web-term-ui';
+
+export interface ICommandOptions<T = any> {
+    commands: ICommandInfo[];
+    disk: T;
+    data: string;
+    term: WebTerm;
+    run: (line: string|ICommandInfo[]) => Promise<boolean|string>;
+}
+
 export class BaseCommand<T> implements ICommand<T> {
     name = '';
     helpInfo: IFnMaybe<string> = '';
@@ -20,7 +29,7 @@ export class BaseCommand<T> implements ICommand<T> {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
-    run (cmd: ICommandInfo, options: {commands: ICommandInfo[]; disk: T; data: string;}): IPromiseMaybe<string> {
+    run (cmd: ICommandInfo, options: ICommandOptions<T>): IPromiseMaybe<string> {
         return '';
     }
 

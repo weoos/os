@@ -60,7 +60,7 @@ export function mergeU8s (...u8s: Uint8Array[]) {
     return result;
 }
 
-export function isU8sEqual (u8s1: Uint8Array, u8s2: Uint8Array) {
+export function isU8sEqual (u8s1: Uint8Array, u8s2: Uint8Array|null) {
     if (!u8s1 || !u8s2) return false;
     const n1 = u8s1.byteLength;
     if (n1 !== u8s2.byteLength) return false;
@@ -105,65 +105,16 @@ export async function runPromises (ps: (()=>Promise<any>)[]) {
     }
 }
 
-const endMark = Symbol('');
-
-export function runASEnd<T> (value: T) {
+export function createPromises<T=any> () {
+    const promises: (Promise<T>)[] = [];
     return {
-        [endMark]: true,
-        value,
-    };
-}
-
-// 作用是确保同步和异步逻辑可以分别处理，如 writeFile和writeFileSync
-export function runAS<T = any> (
-    fns: ((prev: any, end: <T>(v?: T)=>T)=>any)[],
-): T {
-
-    let isAsync = false;
-    let prev: any;
-    let resolve: (v: T)=>any;
-    let ready: Promise<T>;
-
-    let finish = false;
-
-    const end = (v: any) => {
-        finish = true;
-        prev = v;
-        return v;
-    };
-
-    const next = () => {
-        const fn = fns.shift();
-        if (!fn) return resolve?.(prev);
-
-        let result = fn(prev, end);
-
-        if (result?.[endMark]) {
-            result = result.value;
-            finish = true;
-        }
-
-        if (finish) return resolve?.(result);
-
-        const _next = (result: any) => {
-            prev = result;
-            next();
-        };
-        if (result instanceof Promise) {
-            if (!isAsync) {
-                isAsync = true;
-                const p = withResolve();
-                ready = p.ready;
-                resolve = p.resolve;
-            }
-            result.then(_next);
-        } else {
-            _next(result);
+        add: (v: Promise<T>) => {
+            promises.push(v);
+        },
+        run: () => {
+            return Promise.all(promises);
         }
     };
-    next();
-    // @ts-ignore
-    return isAsync ? ready : prev;
 }
 type DebounceFunction<T extends (...args: any[]) => any> = (
     this: ThisParameterType<T>,

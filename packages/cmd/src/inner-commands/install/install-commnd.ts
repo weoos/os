@@ -50,7 +50,7 @@ export class InstallCommand extends BaseCommand<Disk> {
                 return `Install fail: ${info}`;
             }
         } else if (local) {
-            const text = this.disk.readTextSync(local);
+            const text = await this.disk.readText(local);
 
             if (!text) {
                 return `Install from local fail: ${local}`;
