@@ -25,7 +25,7 @@ export interface ICommand<T = any> {
         data: string,
         term: WebTerm,
         run: (line: string|ICommandInfo[]) => Promise<string|boolean>;
-    }): IPromiseMaybe<string>,
+    }): IPromiseMaybe<string|boolean>,
     activate?(disk: T, provider: ICommandProvider): void;
     dispose?(): void;
 }

@@ -29,7 +29,7 @@ export class BaseCommand<T> implements ICommand<T> {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
-    run (cmd: ICommandInfo, options: ICommandOptions<T>): IPromiseMaybe<string> {
+    run (cmd: ICommandInfo, options: ICommandOptions<T>): IPromiseMaybe<string|boolean> {
         return '';
     }
 

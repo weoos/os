@@ -97,7 +97,7 @@ export class CommandProvider implements ICommandProvider {
         let prev = '';
         for (const item of commands) {
             const result = await this.runSingleCommand(item, prev, commands);
-            if (result === false) {
+            if (!result) {
                 return false;
             }
             prev = typeof result === 'boolean' ? '' : result;
@@ -114,7 +114,7 @@ export class CommandProvider implements ICommandProvider {
         const { clearTerminal, setPwd, openEditor } = this.methods;
         // return `execute ${command} ${args.toString()}`;
         const { name, args, options } = cur;
-        let result = '';
+        let result: boolean|string = '';
         const [ arg0, arg1 ] = args;
         const { cmd } = this;
 

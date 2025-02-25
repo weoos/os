@@ -349,10 +349,12 @@ export class Disk implements IDisk {
         );
         if (!success) return false;
         this._watch.fireRename(path);
-        isDir ?
-            this._sync.syncMiddleware.createDir(path, overwrite) :
-            // @ts-ignore
-            this._sync.syncMiddleware.createFile(path, content, overwrite);
+        if (this.enableSync) {
+            isDir ?
+                this._sync.syncMiddleware.createDir(path, overwrite) :
+                // @ts-ignore
+                this._sync.syncMiddleware.createFile(path, content, overwrite);
+        }
         return success;
     }
 
