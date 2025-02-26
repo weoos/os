@@ -15,14 +15,19 @@ export interface ICreateOpt {
     overwrite?: boolean,
 }
 
-type IDisk = Omit<IDiskBankEnd, 'init'|'traverseContent'> & {
+type IDisk = Omit<IDiskBankEnd, 'init' | 'traverseContent'> & {
     createDir: (path: string, opt?: ICreateOpt) => Promise<boolean>,
     createLink: (path: string, target: string, opt?: ICreateOpt) => Promise<boolean>,
     createFile: (path: string, content: Uint8Array, overwrite?: boolean) => Promise<boolean>,
 }
 
-export interface IDiskOption{
+export interface IDiskOption {
     enableSync?: boolean
+}
+export interface IClipboard {
+    paths: string[],
+    isCut: boolean,
+    active: boolean,
 }
 
 export class Disk implements IDisk {
@@ -32,15 +37,11 @@ export class Disk implements IDisk {
 
     ready: Promise<void>;
 
-    clipboard: {
-        paths: string[],
-        isCut: boolean,
-        active: boolean,
-    } = {
-            paths: [],
-            isCut: false,
-            active: false,
-        };
+    clipboard: IClipboard = {
+        paths: [],
+        isCut: false,
+        active: false,
+    };
 
     _link: Link;
     _zip: Zip;
@@ -140,7 +141,7 @@ export class Disk implements IDisk {
     pwd () {
         return this.current;
     }
-    async copy (files: string|string[]) {
+    async copy (files: string | string[]) {
         return this._addToClipboard(files);
     }
     async move (source: string, target: string) {
@@ -152,10 +153,10 @@ export class Disk implements IDisk {
         const renameMap = { [oldFull]: newFull };
         return this.paste(parent, renameMap);
     }
-    async cut (files: string|string[]) {
+    async cut (files: string | string[]) {
         return this._addToClipboard(files, true);
     }
-    _addToClipboard (files: string|string[], isCut = false) {
+    _addToClipboard (files: string | string[], isCut = false) {
         if (typeof files === 'string') {
             files = [ files ];
         }
@@ -168,11 +169,27 @@ export class Disk implements IDisk {
     }
 
     async paste (targetDir: string, renameMap: Record<string, string> = {}): Promise<string> {
-        if (!this.clipboard.active) return 'No Copy Files';
+        const result = await this.pasteBase(targetDir, this.clipboard, renameMap);
+        if (!result && this.clipboard.isCut) {
+            this.clipboard = {
+                paths: [],
+                active: false,
+                isCut: false,
+            };
+        }
+        return result;
+    }
+
+    async pasteBase (
+        targetDir: string,
+        clipboard: IClipboard,
+        renameMap: Record<string, string> = {},
+    ) {
+        if (!clipboard.active) return 'No Copy Files';
         const lsResult = await this.ls(targetDir);
 
         const currentChildren = lsResult || [];
-        const { isCut, paths } = this.clipboard;
+        const { isCut, paths } = clipboard;
         console.log('pasteMap 1', paths, targetDir, currentChildren, renameMap);
         const pasteMap = handlePasteFileNames(
             paths,
@@ -203,6 +220,7 @@ export class Disk implements IDisk {
             return `Copy Failed: ${fails.join(', ')}`;
         }
         return '';
+
     }
 
     async copySingle (source: string, target: string) {
@@ -218,7 +236,7 @@ export class Disk implements IDisk {
             return await this.createFile(target, data!, { ensure: true });
         }
         let allSuccess = true;
-        const promises: (()=>Promise<any>)[] = [
+        const promises: (() => Promise<any>)[] = [
             () => this.createDir(target)
         ];
         // fs.rename('aa', 'newaa/aa2')
@@ -307,7 +325,7 @@ export class Disk implements IDisk {
     async stat (path: string, recursive = true): Promise<IFileStats> {
         return this._transStat(await this.backend.stat(this.fmtPath(path), recursive));
     }
-    _transStat ({ size, type }: Pick<IFileStats, 'type'|'size'>): IFileStats {
+    _transStat ({ size, type }: Pick<IFileStats, 'type' | 'size'>): IFileStats {
         return {
             size,
             type,
@@ -407,7 +425,18 @@ export class Disk implements IDisk {
 
     createFileContent (content: string, type: IFileType = 'file') {
         return createFileContent(type, content);
-    };
+    }
+
+    rename (path: string, name: string) {
+        path = this.fmtPath(path);
+        const parent = getParentPath(path);
+        const newPath = pt.join(parent, name);
+        return this.pasteBase(parent, {
+            paths: [ path ],
+            active: true,
+            isCut: true,
+        }, { [path]: newPath });
+    }
 
 }
 
