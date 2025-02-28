@@ -144,15 +144,6 @@ export class Disk implements IDisk {
     async copy (files: string | string[]) {
         return this._addToClipboard(files);
     }
-    async move (source: string, target: string) {
-        const success = await this.cut([ source ]);
-        if (!success) return false;
-        const newFull = this.fmtPath(target);
-        const oldFull = this.fmtPath(source);
-        const { parent } = splitPathInfo(newFull);
-        const renameMap = { [oldFull]: newFull };
-        return this.paste(parent, renameMap);
-    }
     async cut (files: string | string[]) {
         return this._addToClipboard(files, true);
     }
@@ -178,6 +169,26 @@ export class Disk implements IDisk {
             };
         }
         return result;
+    }
+    async move (source: string, target: string) {
+        const newFull = this.fmtPath(target);
+        const oldFull = this.fmtPath(source);
+        const parent = getParentPath(newFull);
+        return this.pasteBase(parent, {
+            paths: [ oldFull ],
+            active: true,
+            isCut: true,
+        }, { [oldFull]: newFull });
+    }
+    rename (path: string, name: string) {
+        path = this.fmtPath(path);
+        const parent = getParentPath(path);
+        const newPath = pt.join(parent, name);
+        return this.pasteBase(parent, {
+            paths: [ path ],
+            active: true,
+            isCut: true,
+        }, { [path]: newPath });
     }
 
     async pasteBase (
@@ -427,16 +438,6 @@ export class Disk implements IDisk {
         return createFileContent(type, content);
     }
 
-    rename (path: string, name: string) {
-        path = this.fmtPath(path);
-        const parent = getParentPath(path);
-        const newPath = pt.join(parent, name);
-        return this.pasteBase(parent, {
-            paths: [ path ],
-            active: true,
-            isCut: true,
-        }, { [path]: newPath });
-    }
 
 }
 
