@@ -5,9 +5,9 @@
  */
 import JSZip from 'jszip';
 import type { Disk } from '../disk';
-import NPath from 'path';
-import { handlePasteFileNames, splitPathInfo } from '../utils';
+import { extractSubDir, handlePasteFileNames, pt, splitPathInfo } from '../utils';
 import { createSpacialMarker, isTargetType } from '../file-marker';
+import type { IOprateResult } from '@weoos/utils';
 import { createPromises, mergeU8s } from '@weoos/utils';
 
 const { data: ZipMarkerData } = createSpacialMarker('zip');
@@ -15,16 +15,19 @@ const { data: ZipMarkerData } = createSpacialMarker('zip');
 export class Zip {
     constructor (public disk: Disk) {}
 
-    async zip (paths: string[], target: string = 'compress.zip') {  // 默认文件名
+    async zip (paths: string[], target: string = 'compress.zip'): Promise<IOprateResult> {  // 默认文件名
         target = this.disk.fmtPath(target);
 
         const zip = new JSZip();
-        const { add, run } = createPromises();
-        for (let path in paths) {
+        const { add, run } = createPromises<boolean>();
+        for (let path of paths) {
             path = this.disk.fmtPath(path);
             add(this.zipSingleFile(zip, path));
         }
-        await run();
+        const results = await run();
+
+        if (!results.find(bool => bool)) return { success: false, info: `zip fail: no files` };
+
         const data = await zip.generateAsync({ type: 'uint8array' });
 
         const { parent } = splitPathInfo(target);
@@ -33,69 +36,91 @@ export class Zip {
             parent,
             await this.disk.ls(parent) || []
         );
-        this.disk.createFile(map[target], mergeU8s(ZipMarkerData, data));
+        await this.disk.createFile(map[target], mergeU8s(ZipMarkerData, data));
+        return {
+            success: true,
+            info: map[target],
+        };
     }
 
     private async zipSingleFile (zip: JSZip, path: string) {
         const type = await this.disk.getType(path);
-        if (type === 'empty') return;
+        if (type === 'empty') return false;
 
         if (type === 'dir') {
             const folder = zip.folder(path);
-            if (!folder) return;
+            if (!folder) return false;
             let paths = await this.disk.ls(path) || [];
-            paths = paths.map(name => NPath.join(path, name));
+            paths = paths.map(name => pt.join(path, name));
+            const { add, run } = createPromises();
             for (const path of paths) {
-                this.zipSingleFile(folder, path);
+                add(this.zipSingleFile(folder, path));
             }
+            await run();
         } else {
             const data = await this.disk.read(path);
-            if (!data) return;
-            zip.file(path, data, { binary: true });
+            if (!data) return false;
+            // @ts-ignore
+            const name = path.replace(zip.root, '');
+            zip.file(name, data, { binary: true });
         }
+        return true;
     }
 
 
-    async unzip (path: string, target?: string) {
+    async unzip (path: string, target?: string): Promise<{path: string, isDir: boolean}[]> {
 
         const origin = await this.disk.read(path);
         const data = this.getZipData(origin);
-        if (!data) return;
+        if (!data) return [];
 
         path = this.disk.fmtPath(path);
 
         const files = await this.unzipU8Arr(data);
         target = target ? this.disk.fmtPath(target) : this.disk.current;
 
-        const sources: string[] = [];
-
+        // 记录最外层的文件路径
+        const subSet: Set<string> = new Set();
+        // 记录所有的映射关系
+        const subMap: Record<string, string> = {};
         for (const file of files) {
-            // 只需要对最外层的文件进行重命名冲突
-            if (file.path.indexOf('/') === -1) {
-                sources.push(file.path);
+            const sub = extractSubDir(target, file.path);
+            if (sub) {
+                subMap[file.path] = sub;
+                subSet.add(sub);
             }
         }
+        // 处理命名冲突
         const map = handlePasteFileNames(
-            sources,
+            Array.from(subSet),
             target,
             await this.disk.ls(target) || []
         );
+
+        const names: {path: string, isDir: boolean}[] = [];
         for (const file of files) {
 
-            const { parent, path } = splitPathInfo(file.path);
-            let fullPath = map[parent];
+            let newPath = file.path;
+            const sub = subMap[file.path];
 
-            if (parent) {
-                fullPath = path.replace(parent, fullPath);
+            // 替换新路径
+            if (sub) {
+                const rename = map[sub];
+                if (rename) {
+                    newPath = newPath.replace(sub, rename);
+                }
             }
 
             if (file.isDir) {
-                await this.disk.createDir(fullPath);
+                names.push({ path: newPath, isDir: true });
+                await this.disk.createDir(newPath);
             } else {
-                this.disk.createFile(file.path, file.data);
+                names.push({ path: newPath, isDir: false });
+                this.disk.createFile(newPath, file.data);
             }
         }
 
+        return names;
     }
 
     private async unzipU8Arr (data: Uint8Array, onProgress?: (data: IUnZipProgressData)=>void): Promise<IUnZipProgressData[]> {

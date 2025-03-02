@@ -1,9 +1,10 @@
 import { StorageBackEnd, type IDiskBankEnd } from './backend/storage';
 import type { IFileStats, IFileType } from './types';
-import { clearPath, handlePasteFileNames, splitPathInfo, pt, getParentPath } from './utils';
+import { clearPath, handlePasteFileNames, pt, getParentPath } from './utils';
 import { IDBBackEnd } from './backend/idb';
 import { createFileContent, getTypeWithData } from './file-marker';
 import { Link, link } from './plugin/link';
+import type { IPromiseMaybe } from '@weoos/utils';
 import { decode, isU8sEqual, runPromises } from '@weoos/utils';
 import { Zip } from './plugin/zip';
 import { Watch } from './plugin/watch';
@@ -158,9 +159,36 @@ export class Disk implements IDisk {
         };
         return true;
     }
-
-    async paste (targetDir: string, renameMap: Record<string, string> = {}): Promise<string> {
-        const result = await this.pasteBase(targetDir, this.clipboard, renameMap);
+    move (source: string, target: string, onFinalName?: (v: string)=>void) {
+        const newFull = this.fmtPath(target);
+        const oldFull = this.fmtPath(source);
+        const parent = getParentPath(newFull);
+        return this.pasteBase(parent, {
+            paths: [ oldFull ],
+            active: true,
+            isCut: true,
+        }, { [oldFull]: newFull }, (map) => {
+            onFinalName?.(map[oldFull]);
+        });
+    }
+    rename (path: string, name: string, onFinalName?: (v: string)=>void) {
+        path = this.fmtPath(path);
+        const parent = getParentPath(path);
+        const newPath = pt.join(parent, name);
+        return this.pasteBase(parent, {
+            paths: [ path ],
+            active: true,
+            isCut: true,
+        }, { [path]: newPath }, (map) => {
+            onFinalName?.(map[path]);
+        });
+    }
+    async paste (
+        targetDir: string,
+        renameMap: Record<string, string> = {},
+        onFinalName?: (map: Record<string, string>) => void,
+    ): Promise<string> {
+        const result = await this.pasteBase(targetDir, this.clipboard, renameMap, onFinalName);
         if (!result && this.clipboard.isCut) {
             this.clipboard = {
                 paths: [],
@@ -170,45 +198,26 @@ export class Disk implements IDisk {
         }
         return result;
     }
-    async move (source: string, target: string) {
-        const newFull = this.fmtPath(target);
-        const oldFull = this.fmtPath(source);
-        const parent = getParentPath(newFull);
-        return this.pasteBase(parent, {
-            paths: [ oldFull ],
-            active: true,
-            isCut: true,
-        }, { [oldFull]: newFull });
-    }
-    rename (path: string, name: string) {
-        path = this.fmtPath(path);
-        const parent = getParentPath(path);
-        const newPath = pt.join(parent, name);
-        return this.pasteBase(parent, {
-            paths: [ path ],
-            active: true,
-            isCut: true,
-        }, { [path]: newPath });
-    }
-
     async pasteBase (
         targetDir: string,
         clipboard: IClipboard,
         renameMap: Record<string, string> = {},
+        onFinalName?: (map: Record<string, string>) => void,
     ) {
         if (!clipboard.active) return 'No Copy Files';
         const lsResult = await this.ls(targetDir);
 
         const currentChildren = lsResult || [];
         const { isCut, paths } = clipboard;
-        console.log('pasteMap 1', paths, targetDir, currentChildren, renameMap);
+        // console.log('pasteMap 1', paths, targetDir, currentChildren, renameMap);
         const pasteMap = handlePasteFileNames(
             paths,
             this.fmtPath(targetDir),
             currentChildren,
             renameMap,
         );
-        console.log('pasteMap', pasteMap);
+        onFinalName?.(pasteMap);
+        // console.log('pasteMap', pasteMap);
         const fails: string[] = [];
         // copy
         const promises: Promise<void>[] = [];
@@ -269,6 +278,26 @@ export class Disk implements IDisk {
         }, source);
         await runPromises(promises);
         return allSuccess;
+    }
+
+    traverseContent (
+        path: string,
+        callback: (path: string, content: Promise<Uint8Array | null>, name: string) => IPromiseMaybe<void>,
+    ): Promise<void> {
+        return this.backend.traverseContent(callback, path);
+    }
+    traverse (path: string, callback: (data: {
+        path: string;
+        parent: string;
+        name: string;
+    }) => void) {
+        return this.backend.traverseContent((path, _, name) => {
+            callback({
+                path,
+                parent: getParentPath(path),
+                name,
+            });
+        }, path, false);
     }
     @link
     async readText (path: string): Promise<string | null> {

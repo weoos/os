@@ -125,6 +125,7 @@ export class StorageBackEnd {
     async traverseContent (
         callback: (path: string, content: Promise<Uint8Array|null>, name: string) => IPromiseMaybe<void>,
         path = '',
+        read = true,
     ) {
         let dir: FileSystemDirectoryHandle;
         if (!path) {
@@ -136,22 +137,23 @@ export class StorageBackEnd {
             }
             dir = _dir;
         }
-        await this._traverseContent(path, dir, callback);
+        await this._traverseContent(path, dir, callback, read);
     }
 
     private async _traverseContent (
         path: string,
         dir: FileSystemDirectoryHandle,
         callback: (path: string, content: Promise<Uint8Array|null>, name: string) => IPromiseMaybe<void>,
+        read: boolean,
     ) {
         for await (const item of dir.entries()) {
             const [ name, dir ] = item;
             const fullPath = `${path}/${name}`;
             if (dir.kind === 'directory') {
                 await callback(fullPath, Promise.resolve(null), name);
-                await this._traverseContent(fullPath, dir, callback);
+                await this._traverseContent(fullPath, dir, callback, read);
             } else {
-                await callback(fullPath, this._readFile(dir), name);
+                await callback(fullPath, read ? this._readFile(dir) : Promise.resolve(null), name);
             }
         }
     }

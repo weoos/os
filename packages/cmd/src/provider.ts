@@ -33,8 +33,8 @@ const CMD_HELP_MAP = {
     tail: 'Display the last few lines of a file (the number of lines is specified by an argument).',
     grep: 'Search for a specific pattern in files and return the matching lines.',
     find: 'Search for files or directories based on certain conditions and return the results.',
-    zip: 'Compress files and directories into a zip file.',
-    unzip: 'Extract the contents of a zip file.',
+    zip: 'Compress files and directories into a zip file.(-t for compress file name)',
+    unzip: 'Extract the contents of a zip file.(unzip zip_file target_dir)',
     tar: 'Compress files and directories into a zip file.',
     du: 'Display the disk usage of a file or directory.',
     help: 'Show commands information.',
@@ -96,8 +96,15 @@ export class CommandProvider implements ICommandProvider {
         }
         let prev = '';
         for (const item of commands) {
-            const result = await this.runSingleCommand(item, prev, commands);
-            if (!result) {
+            let result: string|boolean;
+            try {
+                result = await this.runSingleCommand(item, prev, commands);
+            } catch (e) {
+                console.error(e);
+                result = e.toString();
+            }
+            __DEV__ && console.log('onCommand result', result);
+            if (!result && typeof result !== 'string') {
                 return false;
             }
             prev = typeof result === 'boolean' ? '' : result;
@@ -170,9 +177,12 @@ export class CommandProvider implements ICommandProvider {
             case 'tail': result = await cmd.tail(arg0, parseInt(arg1)) || ''; break;
             case 'grep': result = (await cmd.grep(arg0, arg1)).join('\r\n'); break;
             case 'find': result = (await cmd.find(arg0, options)).join('\r\n'); break;
-            case 'zip': await cmd.zip(args.slice(1), arg0); break;
+            case 'zip':
+            case 'tar': // todo 暂时建议处理
+                const { success, info } = await cmd.zip(args, options.t as string);
+                result = success ? `Zip to ${info}` : info;
+                break;
             case 'unzip': await cmd.unzip(arg0, arg1); break;
-            case 'tar': await cmd.zip(args.slice(1), arg0); break;
             case 'du': result = `size = ${await cmd.du(arg0)}`; break;
 
             case 'help': result = CMDHelpInfo(); break;

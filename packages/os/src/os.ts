@@ -74,6 +74,7 @@ export class WebOS {
                 return;
             }
             const result = await commandProvider.onCommand(content);
+            __DEV__ && console.log('enter', result);
             if (typeof result === 'string') {
                 result ? this.term.write(result) : this.term.newLine();
             }
