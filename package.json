@@ -25,11 +25,17 @@
     "devDependencies": {
         "@babel/preset-env": "^7.21.4",
         "@rollup/plugin-babel": "^6.0.4",
+        "@rollup/rollup-win32-arm64-msvc": "^4.34.8",
         "@types/fs-extra": "^11.0.4",
         "@types/node": "^22.5.1",
         "@typescript-eslint/eslint-plugin": "^5.4.0",
         "@typescript-eslint/parser": "^5.4.0",
         "@vitejs/plugin-legacy": "^4.1.1",
+        "@weoos/cmd": "workspace:*",
+        "@weoos/disk": "workspace:*",
+        "@weoos/event": "workspace:*",
+        "@weoos/os": "workspace:*",
+        "@weoos/utils": "workspace:*",
         "dts-bundle-generator": "^9.5.1",
         "eslint": "^8.52.0",
         "fs-extra": "^11.2.0",
@@ -41,16 +47,16 @@
         "vite": "^5.0.6",
         "vite-plugin-commonjs": "^0.10.4",
         "vite-plugin-css-injected-by-js": "^3.5.1",
-        "vitest": "^2.1.2",
-        "@weoos/event": "workspace:*",
-        "@weoos/cmd": "workspace:*",
-        "@weoos/disk": "workspace:*",
-        "@weoos/utils": "workspace:*",
-        "@weoos/os": "workspace:*"
+        "vitest": "^2.1.2"
     },
     "description": "Pure front-end OS on Browser",
     "author": "theajack",
     "publishConfig": {
         "registry": "https://registry.npmjs.org"
+    },
+    "overrides": {
+        "vite": {
+            "rollup": "npm:@rollup/wasm-node"
+        }
     }
 }
