@@ -4,10 +4,10 @@
  * @Description: Coding something
  */
 export * from './utils';
-export * from './types.d';
+export type { ICommandDisk } from './types.d';
 
 export { CMD } from './cmd';
-export { Disk } from '@weoos/disk';
+export * from '@weoos/disk';
 export { CommandProvider } from './provider';
 
 export * from './inner-commands/entry';

@@ -9,35 +9,38 @@ import type { IDiskBankEnd } from '../backend/storage';
 import type { Disk } from '../disk';
 import { withResolve } from '@weoos/utils';
 
-export function link (
-    $1: any, key: string,
-    descriptor: PropertyDescriptor
-) {
-    const origin = descriptor.value;
+export const link = syncBase();
+export const linkSync = syncBase(true);
 
-    const isSync = key.endsWith('Sync');
+function syncBase (isSync = false) {
+    return function (
+        $1: any, key: string,
+        descriptor: PropertyDescriptor
+    ) {
+        const origin = descriptor.value;
 
-    descriptor.value = function (this: Disk, ...args: any[]) {
-        const path = this.fmtPath(args[0] || '');
 
-        const fn = (target: string) => {
-            args[0] = target || path;
-            return origin.apply(this, args);
-        };
+        descriptor.value = function (this: Disk, ...args: any[]) {
+            const path = this.fmtPath(args[0] || '');
 
-        if (isSync) {
-            const target = this._link.getSync(path);
-            return fn(target);
-        } else {
-            const { ready, resolve } = withResolve();
-            this._link.get(path).then(target => {
+            const fn = (target: string) => {
+                args[0] = target || path;
+                return origin.apply(this, args);
+            };
+
+            if (isSync) {
+                const target = this._link.getSync(path);
                 return fn(target);
-            }).then(result => {
-                resolve(result);
-            });
-            return ready;
-        }
-
+            } else {
+                const { ready, resolve } = withResolve();
+                this._link.get(path).then(target => {
+                    return fn(target);
+                }).then(result => {
+                    resolve(result);
+                });
+                return ready;
+            }
+        };
     };
 }
 

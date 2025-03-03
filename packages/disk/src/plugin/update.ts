@@ -212,7 +212,7 @@ export class UpdateManager {
 
     async checkWriteChange () {
         if (Object.keys(this.tempChange).length === 0) return;
-        console.log('sync-manager write', JSON.stringify(this.tempChange, null, 2));
+        __DEV__ && console.log('sync-manager write', JSON.stringify(this.tempChange, null, 2));
         await Storage.writeChanges(this.tempChange);
         this.tempChange = {};
     }

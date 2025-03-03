@@ -3,11 +3,11 @@
  * @Date: 2025-02-08 00:38:21
  * @Description: Coding something
  */
-import { decode, isU8sEqual, runPromises, splitPathInfo } from '@weoos/utils';
-import type { Disk, ICreateOpt } from '../disk';
+import { decode, isU8sEqual, runPromises } from '@weoos/utils';
+import type { Disk, IClipboard, ICreateOpt } from '../disk';
 import { SyncMiddleware } from '../sync-middleware/sync-middleware';
-import { getParentPath, handlePasteFileNames, pt } from '../utils';
-import { link } from './link';
+import { getFileName, getParentPath, handlePasteFileNames, pt } from '../utils';
+import { linkSync } from './link';
 import type { IFileStats, IFileType } from '../types';
 import { createFileContent, getTypeWithData } from '../file-marker';
 
@@ -61,34 +61,75 @@ export class SyncProxy {
         this.disk.copy(files);
         return true;
     }
-    move (source: string, target: string) {
-        const success = this.cut([ source ]);
-        if (!success) return `cut file fail`;
-        const newFull = this.fmtPath(target);
-        const oldFull = this.fmtPath(source);
-        const { parent } = splitPathInfo(newFull);
-        const renameMap = { [oldFull]: newFull };
-        return this.paste(parent, renameMap);
-    }
     cut (files: string|string[]) {
         this.disk.cut(files);
         return true;
     }
-    paste (targetDir: string, renameMap: Record<string, string> = {}): string {
-        const clipboard = this.disk.clipboard;
+    move (source: string, target: string, onFinalName?: (v: string)=>void) {
+        const newFull = this.fmtPath(target);
+        const oldFull = this.fmtPath(source);
+        const parent = getParentPath(newFull);
+        return this.pasteBase(parent, {
+            paths: [ oldFull ],
+            active: true,
+            isCut: true,
+        }, { [oldFull]: newFull }, (map) => {
+            onFinalName?.(map[oldFull]);
+        });
+    }
+    rename (path: string, name: string, onFinalName?: (v: string)=>void) {
+        path = this.fmtPath(path);
+        const parent = getParentPath(path);
+        const newPath = pt.join(parent, name);
+        return this.pasteBase(parent, {
+            paths: [ path ],
+            active: true,
+            isCut: true,
+        }, { [path]: newPath }, (map) => {
+            onFinalName?.(map[path]);
+        });
+    }
+    paste (
+        targetDir: string,
+        renameMap: Record<string, string> = {},
+        onFinalName?: (map: Record<string, string>) => void,
+    ): string {
+        const result = this.pasteBase(
+            targetDir,
+            this.disk.clipboard,
+            renameMap,
+            onFinalName,
+        );
+        if (!result && this.disk.clipboard.isCut) {
+            this.disk.clipboard = {
+                paths: [],
+                active: false,
+                isCut: false,
+            };
+        }
+        return result;
+    }
+    pasteBase (
+        targetDir: string,
+        clipboard: IClipboard,
+        renameMap: Record<string, string> = {},
+        onFinalName?: (map: Record<string, string>) => void,
+    ) {
         if (!clipboard.active) return 'No Copy Files';
         const lsResult = this.ls(targetDir);
 
         const currentChildren = lsResult || [];
         const { isCut, paths } = clipboard;
-        console.log('pasteMap 1', paths, targetDir, currentChildren, renameMap);
+        // console.log('pasteMap 1', paths, targetDir, currentChildren, renameMap);
         const pasteMap = handlePasteFileNames(
             paths,
             this.fmtPath(targetDir),
             currentChildren,
             renameMap,
         );
-        console.log('pasteMap', pasteMap);
+        // {"/aa/a.txt": "/aa/b.txt"}
+        // console.log('pasteMap', pasteMap);
+        onFinalName?.(pasteMap);
         const fails: string[] = [];
         // copy
         for (const key in pasteMap) {
@@ -108,7 +149,7 @@ export class SyncProxy {
         }
         return '';
     }
-    @link
+    @linkSync
     ls (path: string = '') {
         path = this.fmtPath(path);
         if (!this.isDir(path)) return null;
@@ -171,18 +212,32 @@ export class SyncProxy {
         runPromises(promises);
         return allSuccess;
     }
-
-    @link
+    traverseContent (
+        path: string,
+        callback: (path: string, content: Uint8Array | null, name: string) => void,
+    ): void {
+        return this.syncMiddleware.traverseContent((path, content) => {
+            callback(path, content, getFileName(path));
+        }, path);
+    }
+    traverse (path: string, callback: (data: {
+        path: string;
+        parent: string;
+        name: string;
+    }) => void) {
+        return this.syncMiddleware.traverse(path, callback);
+    }
+    @linkSync
     read (path: string): Uint8Array | null {
         return this.syncMiddleware.read(path);
     }
-    @link
+    @linkSync
     readText (path: string): string | null {
         const data = this.syncMiddleware.read(path);
         if (!data) return '';
         return decode(data);
     }
-    @link
+    @linkSync
     write (path: string, data: Uint8Array): boolean {
         path = this.fmtPath(path);
         const curData = this.syncMiddleware.pureRead(path);
@@ -200,7 +255,7 @@ export class SyncProxy {
         after?.();
         return true;
     }
-    @link
+    @linkSync
     append (path: string, data: Uint8Array): boolean {
         path = this.fmtPath(path);
         if (!this.exist(path)) {
@@ -219,7 +274,7 @@ export class SyncProxy {
         return this.syncMiddleware.exist(path);
     }
 
-    // @link
+    // @linkSync
     stat (path: string, recursive = true): IFileStats {
         return this.disk._transStat(this.syncMiddleware.stat(this.fmtPath(path), recursive));
     }

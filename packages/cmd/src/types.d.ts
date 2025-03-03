@@ -19,3 +19,4 @@ export interface ICommand extends ICommandBase<Disk> {
 
 }
 
+export interface ICommandDisk extends ICommand {}

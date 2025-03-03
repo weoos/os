@@ -172,7 +172,7 @@ function geneBuildSDKConfig (pkgName: string, isIIFE = false): UserConfig {
                 ...SDKlibConfig(pkgName, isIIFE),
             },
             rollupOptions: {
-                // 不需要
+                // 注释下面一行 可以将依赖打包到bundle里
                 external: isIIFE ? [] : Object.keys(deps.dependencies),
                 plugins: Plugins.BuildPackage,
             },

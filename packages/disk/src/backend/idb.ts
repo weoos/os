@@ -16,11 +16,12 @@ export class IDBBackEnd implements IDiskBankEnd {
     async traverseContent (
         callback: (path: string, content: Promise<Uint8Array|null>, name: string) => IPromiseMaybe<void>,
         path = '',
+        read = true,
     ) {
         const keys = await localforage.keys();
         for (const key of keys) {
             if (key.startsWith(path)) {
-                callback(key, localforage.getItem(key) as Promise<Uint8Array>, splitPathInfo(key).name);
+                callback(key, read ? localforage.getItem(key) as Promise<Uint8Array> : Promise.resolve(null), splitPathInfo(key).name);
             }
         }
     }

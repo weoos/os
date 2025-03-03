@@ -38,9 +38,19 @@ export function getParentPath (path): string {
     return splitPathInfo(path).parent;
 }
 
+// window.getParentPath = getParentPath;
+
 export function getFileName (path: string) {
+    return getLastSplit(path, '/');
+}
+
+export function getFileExt (path: string) {
+    return getLastSplit(path, '.');
+}
+
+function getLastSplit (path: string, split: string) {
     path = clearPath(path);
-    const index = path.lastIndexOf('/');
+    const index = path.lastIndexOf(split);
     if (index === -1) return path;
     return path.substring(index + 1);
 }
@@ -92,4 +102,16 @@ export function renameWhenConflict (name: string, set: Set<string>): string {
         }
     }
     return name;
+}
+
+/**
+ * input: /a/b, /a/b/c/d.js
+ * output: /a/b/c
+ */
+export function extractSubDir (target: string, filePath: string) {
+    if (target.endsWith('/')) target = target.substring(0, target.length - 1);
+    // 构建正则表达式，匹配以 a 路径开头，后面紧跟一个斜杠和一个或多个非斜杠字符
+    const regex = new RegExp(`^${target}/([^/]+)`);
+    const match = filePath.match(regex);
+    return match ? `${target}/${match[1]}` : '';
 }

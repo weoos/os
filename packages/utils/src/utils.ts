@@ -139,6 +139,10 @@ export function debounce<T extends (...args: any[]) => any>(
 
 
 export function splitPathInfo (path: string): {path: string, parent: string, name: string} {
+    if (path === '/') return { path, parent: path, name: '' };
+    if (path.endsWith('/')) {
+        return splitPathInfo(path.substring(0, path.length - 1));
+    }
 
     const index = path.lastIndexOf('/');
 
